@@ -23,8 +23,6 @@ async def main():
 
     aggTradeFormattedUrl = wsServer + "/".join(aggTrade)
     klineFormattedUrl = wsServer + "/".join(kline)
-    print(aggTradeFormattedUrl)
-    print(klineFormattedUrl)
 
     tasks = []
     
