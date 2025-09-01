@@ -33,38 +33,79 @@ services:
   grafana:
     image: grafana/grafana
     volumes:
-      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - grafana_data_cryptoviz:/var/lib/grafana
+    depends_on:
+      - influxdb
+    restart: unless-stopped
     ports:
       - 3000:3000
     environment:
-      GF_SECURITY_ADMIN_USER: administrator
-      GF_SECURITY_ADMIN_PASSWORD: p@ssw0rd
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: false
 
-  spark:
+
+  spark-master:
+    container_name: spark-master
     image: bitnami/spark:latest
+    depends_on:
+      - consumer
+      - scrapper
+      - kafka
+      - influxdb
+    expose:
+      - 7077
     ports:
-      - 7077:7077
+      - 8080:8080
     environment:
-      SPARK_MODE: master
-      SPARK_MASTER_URL: spark://spark:7077
+      SPARK_RPC_AUTHENTICATION_ENABLED: no
+      SPARK_RPC_ENCRYPTION_ENABLED: no
+      SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED: no
+      SPARK_SSL_ENABLED: no
+      SPARK_MASTER_HOST: spark-master
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KAFKA_DEFAULT_TOPIC: kafka__default_topic
+      KAFKA_TRANSACTION_TOPIC: kafka__transaction_topic
+      INFLUXDB_HOST: influxdb
+      INFLUXDB_V2_URL: http://influxdb:8086
+      INFLUXDB_V2_TOKEN: YPeETS7gbVNEM8m1ulXIW4d-OTxQZ80n1pZXTvVc-b4e5MnT7NDU3dcLpLscP9nr8SvSuvPI8mHwOXPOid0IPQ==
+      INFLUXDB_V2_ORG: cryptoviz
+      INFLUXDB_V2_VERIFY_SSL: false
+      INFLUXDB_BUCKET: home
+    volumes:
+      - spark-data:/opt/bitnami/spark/spark/data
+
+  spark-worker:
+    image: bitnami/spark:latest
+    depends_on:
+      - spark-master
+    environment:
+      SPARK_MODE: worker
+      SPARK_WORKER_CORES: 2
+      SPARK_WORKER_MEMORY: 2g
+      SPARK_MASTER_URL: spark://spark-master:7077
 
   kafka:
     image: apache/kafka:latest
     hostname: kafka
     ports:
       - 9092:9092
+    depends_on:
+      - consumer
+      - scrapper
     environment:
       KAFKA_BROKER_ID: 1
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093  
+      KAFKA_LISTENERS: PLAINTEXT://kafka:29092,CONTROLLER://kafka:29093,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_NODE_ID: 1
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@broker:29093
-      KAFKA_LISTENERS: PLAINTEXT://broker:29092,CONTROLLER://broker:29093,PLAINTEXT_HOST://0.0.0.0:9092
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
@@ -72,4 +113,5 @@ services:
 
 volumes:
   influxdb_data: {}
-  grafana_data: {}
+  grafana_data_cryptoviz: {}
+  spark-data: {}
