@@ -1,0 +1,11 @@
+{
+    "conventionalCommits.scopes": [
+        "grafana",
+        "consumer",
+        "scrapper",
+        "influxdb",
+        "spark",
+        "kafka",
+        "docker",
+    ]
+}

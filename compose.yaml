@@ -28,10 +28,10 @@ services:
     volumes:
       - ./consumer:/usr/share/app
     environment:
-      BINANCE_WEBSOCKET_URL: "wss://stream.binance.com:443/stream?streams="
-      BINANCE_AGGREGATE_TRADE_STEAMS: btcusdt@aggTrade,ethusdt@aggTrade
-      BINANCE_KLINE_STREAMS: btcusdt@kline_1m,ethusdt@kline_1m
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      BINANCE_WEBSOCKET_URL: ${BINANCE_WEBSOCKET_URL}
+      BINANCE_AGGREGATE_TRADE_STEAMS: ${BINANCE_AGGREGATE_TRADE_STEAMS}
+      BINANCE_KLINE_STREAMS: ${BINANCE_KLINE_STREAMS}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
 
   scrapper:
     build:
@@ -43,16 +43,16 @@ services:
   influxdb:
     image: influxdb:alpine
     volumes:
-      - influxdb_data:/var/lib/influxdb
+      - influxdb_data:/var/lib/influxdb2
     ports:
-      - 8086:8086
+      - ${INFLUXDB_PORT:-8086}:8086
     environment:
-      DOCKER_INFLUXDB_INIT_MODE: setup
-      DOCKER_INFLUXDB_INIT_USERNAME: administrator
-      DOCKER_INFLUXDB_INIT_PASSWORD: p@ssw0rd
-      DOCKER_INFLUXDB_INIT_ORG: cryptoviz
-      DOCKER_INFLUXDB_INIT_BUCKET: home
-
+      DOCKER_INFLUXDB_INIT_MODE: ${DOCKER_INFLUXDB_INIT_MODE:-setup}
+      DOCKER_INFLUXDB_INIT_USERNAME: ${DOCKER_INFLUXDB_INIT_USERNAME}
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${DOCKER_INFLUXDB_INIT_PASSWORD}
+      DOCKER_INFLUXDB_INIT_ORG: ${DOCKER_INFLUXDB_INIT_ORG}
+      DOCKER_INFLUXDB_INIT_BUCKET: ${DOCKER_INFLUXDB_INIT_BUCKET}
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${DOCKER_INFLUXDBV2_ADMIN_TOKEN}
   grafana:
     image: grafana/grafana
     volumes:
@@ -62,12 +62,12 @@ services:
       - influxdb
     restart: unless-stopped
     ports:
-      - 3000:3000
+      - ${GRAFANA_PORT:-3000}:3000
     environment:
-      GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: admin
-      GF_USERS_ALLOW_SIGN_UP: false
-
+      GF_SECURITY_ADMIN_USER: ${GF_SECURITY_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: ${GF_USERS_ALLOW_SIGN_UP:-false}
+      DOCKER_INFLUXDBV2_ADMIN_TOKEN: ${DOCKER_INFLUXDBV2_ADMIN_TOKEN}
 
   spark-master:
     container_name: spark-master
@@ -80,7 +80,7 @@ services:
     expose:
       - 7077
     ports:
-      - 8080:8080
+      - ${SPARK_UI_PORT:-8080}:8080
     environment:
       SPARK_RPC_AUTHENTICATION_ENABLED: no
       SPARK_RPC_ENCRYPTION_ENABLED: no
@@ -88,14 +88,14 @@ services:
       SPARK_SSL_ENABLED: no
       SPARK_MASTER_HOST: spark-master
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-      KAFKA_DEFAULT_TOPIC: kafka__default_topic
-      KAFKA_TRANSACTION_TOPIC: kafka__transaction_topic
+      KAFKA_DEFAULT_TOPIC: ${KAFKA_DEFAULT_TOPIC:-kafka__default_topic}
+      KAFKA_TRANSACTION_TOPIC: ${KAFKA_TRANSACTION_TOPIC:-kafka__transaction_topic}
       INFLUXDB_HOST: influxdb
       INFLUXDB_V2_URL: http://influxdb:8086
-      INFLUXDB_V2_TOKEN: YPeETS7gbVNEM8m1ulXIW4d-OTxQZ80n1pZXTvVc-b4e5MnT7NDU3dcLpLscP9nr8SvSuvPI8mHwOXPOid0IPQ==
-      INFLUXDB_V2_ORG: cryptoviz
-      INFLUXDB_V2_VERIFY_SSL: false
-      INFLUXDB_BUCKET: home
+      INFLUXDB_V2_TOKEN: ${INFLUXDBV2_ADMIN_TOKEN}
+      INFLUXDB_V2_ORG: ${DOCKER_INFLUXDB_INIT_ORG}
+      INFLUXDB_V2_VERIFY_SSL: ${INFLUXDB_V2_VERIFY_SSL:-false}
+      INFLUXDB_BUCKET: ${DOCKER_INFLUXDB_INIT_BUCKET}
     volumes:
       - spark-data:/opt/bitnami/spark/spark/data
 
@@ -108,7 +108,7 @@ services:
       SPARK_WORKER_CORES: 2
       SPARK_WORKER_MEMORY: 2g
       SPARK_MASTER_URL: spark://spark-master:7077
-
+      
 volumes:
   influxdb_data: {}
   grafana_data_cryptoviz: {}
