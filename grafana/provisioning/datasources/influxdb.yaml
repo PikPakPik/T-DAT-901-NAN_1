@@ -6,7 +6,7 @@ datasources:
     access: proxy
     url: http://influxdb:8086
     secureJsonData:
-      token: YPeETS7gbVNEM8m1ulXIW4d-OTxQZ80n1pZXTvVc-b4e5MnT7NDU3dcLpLscP9nr8SvSuvPI8mHwOXPOid0IPQ==
+      token: ${DOCKER_INFLUXDBV2_ADMIN_TOKEN}
     jsonData:
       organization: cryptoviz
       defaultBucket: home
