@@ -1,4 +1,6 @@
 #!/bin/bash
 
 echo "Starting services..."
-docker-compose up --scale spark-worker=3 --force-recreate --build
+docker compose up -d --wait --force-recreate --build
+echo "Tailing stream-processor logs... (Ctrl+C to stop)"
+docker compose logs -f stream-processor | cat
