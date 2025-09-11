@@ -20,18 +20,32 @@ services:
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
       CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+  
+  kafka-ui:
+    container_name: kafka-ui
+    image: provectuslabs/kafka-ui:latest
+    ports:
+      - 9090:8080
+    environment:
+      DYNAMIC_CONFIG_ENABLED: 'true'
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
+    depends_on:
+      - kafka
 
-  consumer:
+  scrapper-websocket:
     build:
       context: .docker/
       dockerfile: dev.Dockerfile
     volumes:
-      - ./consumer:/usr/share/app
+      - ./scrapper-websocket:/usr/share/app
+    depends_on:
+      - kafka
     environment:
       BINANCE_WEBSOCKET_URL: ${BINANCE_WEBSOCKET_URL}
       BINANCE_AGGREGATE_TRADE_STEAMS: ${BINANCE_AGGREGATE_TRADE_STEAMS}
       BINANCE_KLINE_STREAMS: ${BINANCE_KLINE_STREAMS}
-      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
 
   scrapper:
     build:
@@ -73,7 +87,7 @@ services:
     container_name: spark-master
     image: bitnami/spark:latest
     depends_on:
-      - consumer
+      - scrapper-websocket
       - scrapper
       - kafka
       - influxdb

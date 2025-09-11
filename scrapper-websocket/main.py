@@ -3,6 +3,7 @@ import json
 import asyncio
 import websockets
 from kafka import KafkaProducer
+import time
 
 async def listen_stream(url, stream_type, handler):
     print(f"🟡 Try to connect on {stream_type} stream: {url}", flush=True)
@@ -45,6 +46,27 @@ def kline_handler(producer):
             print(f"⚠️ Kafka send error: {kafka_err}", flush=True)
     return handler
 
+def create_kafka_producer() -> KafkaProducer:
+    # Treat empty env var as unset and fallback to docker-internal default
+    bootstrap = os.environ.get('KAFKA_BOOTSTRAP_SERVERS') or "kafka:29092"
+    attempt = 1
+    while True:
+        try:
+            print(f"🔌 Connecting to Kafka at {bootstrap} (attempt {attempt})", flush=True)
+            producer = KafkaProducer(
+                bootstrap_servers=bootstrap,
+                value_serializer=lambda v: json.dumps(v).encode('utf-8'),
+                compression_type='gzip'
+            )
+            # Validate connection by fetching metadata
+            producer.partitions_for('healthcheck-topic')
+            print("✅ Kafka connection established", flush=True)
+            return producer
+        except Exception as e:
+            print(f"⏳ Kafka not ready: {e}. Retrying in 3s...", flush=True)
+            time.sleep(3)
+            attempt += 1
+
 async def main():
     wsServer = os.environ.get('BINANCE_WEBSOCKET_URL', "wss://stream.binance.com:443/stream?streams=")
 
@@ -54,11 +76,7 @@ async def main():
     aggTradeFormattedUrl = wsServer + "/".join(aggTrade)
     klineFormattedUrl = wsServer + "/".join(kline)
 
-    producer = KafkaProducer(
-        bootstrap_servers=os.environ.get('KAFKA_BOOTSTRAP_SERVERS', "localhost:9092"),
-        value_serializer=lambda v: json.dumps(v).encode('utf-8'),
-        compression_type='gzip'
-    )
+    producer = create_kafka_producer()
 
     tasks = [
         listen_stream(aggTradeFormattedUrl, "aggTrade", agg_trade_handler(producer)),
