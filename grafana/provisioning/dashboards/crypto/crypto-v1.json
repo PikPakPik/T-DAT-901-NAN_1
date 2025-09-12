@@ -98,8 +98,8 @@
         ]
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
+        "h": 6,
+        "w": 24,
         "x": 0,
         "y": 0
       },
@@ -124,7 +124,7 @@
             "type": "influxdb",
             "uid": "P951FEA4DE68E13C5"
           },
-          "query": "from(bucket: \"home\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"aggtrade_1s\")\n  |> filter(fn: (r) => r[\"_field\"] == \"max_price\")\n  |> filter(fn: (r) => r[\"symbol\"] == \"BTCUSDT\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: \"mean\")",
+          "query": "from(bucket: \"home\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"aggtrade_1s\")\n  |> filter(fn: (r) => r[\"_field\"] == \"avg_price\")\n  |> filter(fn: (r) => r[\"symbol\"] == \"BTCUSDT\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: \"mean\")",
           "refId": "A"
         }
       ],
@@ -133,6 +133,7 @@
     }
   ],
   "preload": false,
+  "refresh": "5s",
   "schemaVersion": 41,
   "tags": [
     "crypto",
@@ -147,12 +148,12 @@
     "list": []
   },
   "time": {
-    "from": "now-2d",
+    "from": "now-1m",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "browser",
   "title": "Crypto - V1",
   "uid": "fdb18402-34a6-4519-8ba3-8ee0dbd73256",
-  "version": 6
+  "version": 10
 }
