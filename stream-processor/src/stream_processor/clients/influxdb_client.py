@@ -12,7 +12,8 @@ from influxdb_client.client.write_api import ASYNCHRONOUS, SYNCHRONOUS
 
 from ..config.settings import InfluxDBConfig, WriteMode
 from ..utils.logger import get_logger
-from ..models.trade_models import AggregatedMetrics
+from ..models.base_models import BaseMetrics
+from ..models.trade_models import AggregatedMetrics  # Compatibility
 
 logger = get_logger(__name__)
 
@@ -70,7 +71,7 @@ class InfluxDBClient:
         except Exception as e:
             logger.warning(f"InfluxDB health check failed: {e}")
     
-    def write_metrics(self, metrics: List[AggregatedMetrics]) -> bool:
+    def write_metrics(self, metrics: List[BaseMetrics]) -> bool:
         """
         Écrit les métriques dans InfluxDB avec retry automatique.
         
@@ -102,7 +103,7 @@ class InfluxDBClient:
             logger.error(f"⚠️ InfluxDB write error: {e}")
             return self._handle_write_error(e, metrics)
     
-    def _handle_write_error(self, error: Exception, metrics: List[AggregatedMetrics]) -> bool:
+    def _handle_write_error(self, error: Exception, metrics: List[BaseMetrics]) -> bool:
         """Gère les erreurs d'écriture avec retry."""
         self._retry_count += 1
         
@@ -118,50 +119,48 @@ class InfluxDBClient:
         logger.error(f"Failed to write after {self.config.max_retries} retries")
         return False
     
-    def _metrics_to_point(self, metrics: AggregatedMetrics) -> Point:
-        """Convertit les métriques en point InfluxDB."""
-        point = Point("aggtrade_1s").tag("symbol", metrics.symbol)
+    def _metrics_to_point(self, metrics: BaseMetrics) -> Point:
+        """Convertit les métriques en point InfluxDB de manière générique."""
+        # Détermine le type de métriques et le measurement approprié
+        measurement = "aggtrade_1s"
+        if 'kline' in metrics.__class__.__name__.lower():
+            measurement = "kline_1s"
         
-        # Métriques de base
-        point = point.field("volume", float(metrics.volume))
-        point = point.field("notional", float(metrics.notional))
-        point = point.field("trade_count", int(metrics.trade_count))
+        point = Point(measurement).tag("symbol", metrics.symbol)
         
-        # Métriques de prix
-        if metrics.min_price > 0:
-            point = point.field("min_price", float(metrics.min_price))
-        if metrics.max_price > 0:
-            point = point.field("max_price", float(metrics.max_price))
-        if metrics.avg_price > 0:
-            point = point.field("avg_price", float(metrics.avg_price))
-        if metrics.median_price > 0:
-            point = point.field("median_price", float(metrics.median_price))
-        if metrics.price_std > 0:
-            point = point.field("price_std", float(metrics.price_std))
-        if metrics.price_range > 0:
-            point = point.field("price_range", float(metrics.price_range))
-        if metrics.vwap > 0:
-            point = point.field("vwap", float(metrics.vwap))
+        # Liste des champs possibles à écrire
+        possible_fields = [
+            # Métriques de base
+            'volume', 'notional', 'trade_count',
+            # Métriques de prix
+            'min_price', 'max_price', 'avg_price', 'median_price', 
+            'price_std', 'price_range', 'vwap',
+            # Métriques d'ordre
+            'buy_pressure', 'sell_pressure', 'buyer_maker_ratio', 'seller_maker_ratio',
+            'buyer_maker_count', 'seller_maker_count', 'buyer_volume', 'seller_volume',
+            # Métriques de volatilité
+            'price_volatility', 'price_trend',
+            # Métriques temporelles
+            'trades_per_second', 'trade_duration_ms',
+            # Métriques kline spécifiques
+            'open_price', 'high_price', 'low_price', 'close_price',
+            'price_change', 'price_change_percent', 'buy_sell_ratio'
+        ]
         
-        # Métriques d'ordre
-        if metrics.buy_pressure > 0:
-            point = point.field("buy_pressure", float(metrics.buy_pressure))
-        if metrics.sell_pressure > 0:
-            point = point.field("sell_pressure", float(metrics.sell_pressure))
-        if metrics.buyer_maker_ratio > 0:
-            point = point.field("buyer_maker_ratio", float(metrics.buyer_maker_ratio))
-        if metrics.seller_maker_ratio > 0:
-            point = point.field("seller_maker_ratio", float(metrics.seller_maker_ratio))
+        # Ajoute tous les champs qui existent dans l'objet metrics
+        for field_name in possible_fields:
+            if hasattr(metrics, field_name):
+                try:
+                    value = getattr(metrics, field_name)
+                    if isinstance(value, (int, float)):
+                        if field_name in ['trade_count', 'buyer_maker_count', 'seller_maker_count', 'trade_duration_ms']:
+                            point = point.field(field_name, int(value))
+                        elif value > 0 or field_name in ['price_trend', 'price_change', 'price_change_percent']:
+                            point = point.field(field_name, float(value))
+                except Exception as e:
+                    logger.debug(f"Could not add field {field_name}: {e}")
         
-        # Métriques de volatilité
-        if metrics.price_volatility > 0:
-            point = point.field("price_volatility", float(metrics.price_volatility))
-        point = point.field("price_trend", float(metrics.price_trend))
-        
-        # Métriques temporelles
-        if metrics.trades_per_second > 0:
-            point = point.field("trades_per_second", float(metrics.trades_per_second))
-        
+        # Timestamp
         point = point.time(metrics.window_start)
         return point
     

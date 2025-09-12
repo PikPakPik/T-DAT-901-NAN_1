@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """
-Stream Processor - Version Simple qui fonctionne
-===============================================
+Stream Processor - Version Modulaire Refactorisée
+===================================================
 
-Version simplifiée qui utilise l'ancienne architecture qui fonctionnait.
+Version refactorisée avec architecture modulaire par topic :
+- Handlers spécialisés par topic (aggTrade, kline)
+- Agrégateurs séparés par type de métriques (trade, price, volume)
+- Routage automatique des messages par topic
+- Architecture plus maintenable et extensible
 """
 
 import os
@@ -14,8 +18,8 @@ from pathlib import Path
 src_path = Path(__file__).parent / "src"
 sys.path.insert(0, str(src_path))
 
-# Import de l'ancienne version qui fonctionnait
-from stream_processor.core.processor import StreamProcessor
+# Import de la nouvelle architecture modulaire
+from stream_processor.core.stream_orchestrator import StreamOrchestrator
 from stream_processor.config.settings import ConfigManager
 
 def main():
@@ -25,14 +29,15 @@ def main():
         config = ConfigManager()
         
         # Affichage simple
-        print("🚀 Stream Processor - Version Simple")
+        print("🚀 Stream Processor - Version Modulaire")
         print(f"📊 Window Size: {config.app.window_seconds}s")
         print(f"📈 Topics: {', '.join(config.app.topics)}")
         print(f"🗄️ InfluxDB Bucket: {config.influxdb.bucket}")
+        print("🏗️ Architecture: Topic-based routing with specialized handlers")
         
-        # Création et lancement du processeur
-        processor = StreamProcessor(config)
-        processor.run()
+        # Création et lancement de l'orchestrateur
+        orchestrator = StreamOrchestrator(config)
+        orchestrator.run()
         
     except KeyboardInterrupt:
         print("🛑 Application arrêtée par l'utilisateur")
