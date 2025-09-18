@@ -76,8 +76,8 @@ services:
 
   scrapper:
     build:
-      context: .docker/
-      dockerfile: dev.Dockerfile
+      context: ./
+      dockerfile: .docker/scrapper.Dockerfile
     volumes:
       - ./scrapper:/usr/share/app
 
