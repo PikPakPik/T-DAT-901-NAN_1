@@ -5,6 +5,9 @@ import websockets
 from kafka import KafkaProducer
 import time
 
+"""
+Établissement d'une connexion WebSocket à Binance et envoi des données reçues à Kafka.
+"""
 async def listen_stream(url, stream_type, handler):
     print(f"🟡 Try to connect on {stream_type} stream: {url}", flush=True)
     async with websockets.connect(url) as websocket:
@@ -18,6 +21,25 @@ async def listen_stream(url, stream_type, handler):
                 print(f"⚠️ Error in {stream_type} stream: {e}", flush=True)
                 break
 
+"""
+Données retournées par le stream aggTrade (Binance aggregated trade):
+Documentation: https://developers.binance.com/docs/binance-spot-api-docs/web-socket-streams#aggregate-trade-streams
+Exemple de payload reçu (format JSON):
+{
+  "e": "aggTrade",    # Event type
+  "E": 1672515782136,  # Event time
+  "s": "BNBBTC",      # Symbol
+  "a": 12345,          # Aggregate trade ID
+  "p": "0.001",      # Price
+  "q": "100",        # Quantity
+  "f": 100,           # First trade ID
+  "l": 105,           # Last trade ID
+  "T": 1672515782136, # Trade time
+  "m": true,          # Is the buyer the market maker?
+  "M": true           # Ignore
+}
+Clés importantes : e, E, s, a, p, q, f, l, T, m, M
+"""
 def agg_trade_handler(producer):
     print("🟢 Starting aggTrade handler", flush=True)
     async def handler(data):
@@ -31,6 +53,36 @@ def agg_trade_handler(producer):
             print(f"⚠️ Kafka send error: {kafka_err}", flush=True)
     return handler
 
+"""
+Données retournées par le stream kline (Binance candlestick/kline):
+Documentation: https://developers.binance.com/docs/binance-spot-api-docs/web-socket-streams#klinecandlestick-streams-for-utc
+Exemple de payload reçu (format JSON):
+{
+  "e": "kline",         // Event type
+  "E": 1672515782136,   // Event time
+  "s": "BNBBTC",        // Symbol
+  "k": {
+    "t": 1672515780000, // Kline start time
+    "T": 1672515839999, // Kline close time
+    "s": "BNBBTC",      // Symbol
+    "i": "1m",          // Interval
+    "f": 100,           // First trade ID
+    "L": 200,           // Last trade ID
+    "o": "0.0010",      // Open price
+    "c": "0.0020",      // Close price
+    "h": "0.0025",      // High price
+    "l": "0.0015",      // Low price
+    "v": "1000",        // Base asset volume
+    "n": 100,           // Number of trades
+    "x": false,         // Is this kline closed?
+    "q": "1.0000",      // Quote asset volume
+    "V": "500",         // Taker buy base asset volume
+    "Q": "0.500",       // Taker buy quote asset volume
+    "B": "123456"       // Ignore
+  }
+}
+Clés importantes : e, E, s, t, T, s, i, o, c, h, l, v, n, x, q, V, Q
+"""
 def kline_handler(producer):
     print("🟢 Starting kline handler", flush=True)
     async def handler(data):
@@ -46,6 +98,9 @@ def kline_handler(producer):
             print(f"⚠️ Kafka send error: {kafka_err}", flush=True)
     return handler
 
+"""
+Création d'un producteur Kafka avec gestion de la reconnexion.
+"""
 def create_kafka_producer() -> KafkaProducer:
     # Treat empty env var as unset and fallback to docker-internal default
     bootstrap = os.environ.get('KAFKA_BOOTSTRAP_SERVERS') or "kafka:29092"
