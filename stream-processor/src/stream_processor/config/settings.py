@@ -58,6 +58,8 @@ class InfluxDBConfig:
 @dataclass
 class AppConfig:
     """Configuration principale de l'application."""
+    # Note: window_seconds est toujours forcé à 1 dans le code
+    # InfluxDB gère l'agrégation temporelle via ses requêtes (GROUP BY time())
     window_seconds: int = 1
     topics: List[str] = field(default_factory=lambda: ["trade", "kline"])
     log_level: LogLevel = LogLevel.INFO

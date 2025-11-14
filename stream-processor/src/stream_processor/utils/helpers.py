@@ -25,6 +25,25 @@ def iso_floor_to_second(ts_ms: Union[int, float]) -> str:
     return floored.isoformat()
 
 
+def iso_floor_to_window(ts_ms: Union[int, float], window_seconds: int = 1) -> str:
+    """
+    Convertit un timestamp en clé de fenêtre avec une taille de fenêtre personnalisée.
+    
+    Args:
+        ts_ms: Timestamp en millisecondes
+        window_seconds: Taille de la fenêtre en secondes
+        
+    Returns:
+        String ISO de la fenêtre de temps
+    """
+    dt = datetime.fromtimestamp(ts_ms / 1000.0, tz=timezone.utc)
+    # Arrondit à la fenêtre la plus proche
+    seconds_since_epoch = int(dt.timestamp())
+    window_start_seconds = (seconds_since_epoch // window_seconds) * window_seconds
+    floored = datetime.fromtimestamp(window_start_seconds, tz=timezone.utc)
+    return floored.isoformat()
+
+
 def format_bytes(bytes_value: int) -> str:
     """
     Formate une taille en bytes en format lisible.

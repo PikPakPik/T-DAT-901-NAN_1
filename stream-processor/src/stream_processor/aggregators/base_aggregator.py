@@ -27,10 +27,11 @@ class BaseAggregator(Generic[T, M], ABC):
         Initialise l'agrégateur.
         
         Args:
-            window_seconds: Taille des fenêtres temporelles en secondes
+            window_seconds: Taille des fenêtres temporelles en secondes (toujours 1s pour InfluxDB)
             max_memory_windows: Nombre maximum de fenêtres en mémoire
         """
-        self.window_seconds = window_seconds
+        # Force window_seconds=1 car InfluxDB gère l'agrégation temporelle via ses requêtes
+        self.window_seconds = 1
         self.max_memory_windows = max_memory_windows
         self.windows: Dict[str, 'WindowData'] = {}
         
@@ -42,7 +43,7 @@ class BaseAggregator(Generic[T, M], ABC):
             "windows_finalized": 0,
         }
         
-        logger.info(f"{self.__class__.__name__} initialized with {window_seconds}s windows")
+        logger.info(f"{self.__class__.__name__} initialized with 1s windows (InfluxDB handles temporal aggregation)")
     
     @abstractmethod
     def _create_window_data(self, symbol: str, window_key: str) -> 'WindowData':
@@ -68,6 +69,7 @@ class BaseAggregator(Generic[T, M], ABC):
             return None
             
         try:
+            # Toujours utiliser des fenêtres de 1 seconde - InfluxDB gère l'agrégation temporelle
             window_key = iso_floor_to_second(record.timestamp)
             trade_key = f"{record.symbol}:{window_key}"
             
