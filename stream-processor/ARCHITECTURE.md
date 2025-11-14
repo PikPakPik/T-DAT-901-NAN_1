@@ -7,7 +7,7 @@
 stream_processor/
 ├── handlers/              # 🎯 Handlers spécialisés par topic
 │   ├── base_handler.py    # Classe de base pour tous les handlers
-│   ├── aggtrade_handler.py # Handler pour les trades agrégés
+│   ├── aggtrade_handler.py # Handler pour les trades
 │   └── kline_handler.py   # Handler pour les klines/candlesticks
 │
 ├── aggregators/           # 📊 Agrégateurs séparés par type de métriques
@@ -18,7 +18,7 @@ stream_processor/
 │
 ├── models/                # 📋 Modèles spécialisés par type de données
 │   ├── base_models.py     # Modèles de base abstraits
-│   ├── aggtrade_models.py # Modèles pour aggTrade
+│   ├── aggtrade_models.py # Modèles pour les trades
 │   ├── kline_models.py    # Modèles pour klines
 │   └── trade_models.py    # Anciens modèles (compatibilité)
 │
@@ -39,7 +39,7 @@ Stream Orchestrator
      ↓
 Topic Router
      ↓
-Handler spécialisé (aggTrade/kline)
+Handler spécialisé (trade/kline)
      ↓
 Agrégateurs multiples (trade/price/volume)
      ↓

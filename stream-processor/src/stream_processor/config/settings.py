@@ -59,7 +59,7 @@ class InfluxDBConfig:
 class AppConfig:
     """Configuration principale de l'application."""
     window_seconds: int = 1
-    topics: List[str] = field(default_factory=lambda: ["aggTrade", "kline"])
+    topics: List[str] = field(default_factory=lambda: ["trade", "kline"])
     log_level: LogLevel = LogLevel.INFO
     max_memory_windows: int = 1000
     cleanup_interval_seconds: int = 60
@@ -128,7 +128,7 @@ class ConfigManager:
         app_config = AppConfig(
             window_seconds=int(os.environ.get("WINDOW_SECONDS", "1")),
             topics=[
-                os.environ.get("TOPIC_AGGTRADE", "aggTrade"),
+                os.environ.get("TOPIC_TRADE", "trade"),
                 os.environ.get("TOPIC_KLINE", "kline"),
             ],
             log_level=LogLevel(os.environ.get("LOG_LEVEL", "INFO")),

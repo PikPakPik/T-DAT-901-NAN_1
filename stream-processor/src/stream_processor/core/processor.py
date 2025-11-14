@@ -135,7 +135,7 @@ class StreamProcessor:
     
     def _is_trade_message(self, message: Dict[str, Any]) -> bool:
         """Vérifie si un message est un trade valide."""
-        return message.get("topic") == "aggTrade"
+        return message.get("topic") == "trade"
     
     def _handle_periodic_actions(self, current_time: int, influx: InfluxDBClient):
         """Gère les actions périodiques du processeur."""

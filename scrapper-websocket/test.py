@@ -4,11 +4,11 @@ import json
 
 try:
     # consumerAggTrade = KafkaConsumer(
-    #     'aggTrade',
+    #     'trade',
     #     bootstrap_servers=os.environ.get('KAFKA_BOOTSTRAP_SERVERS', "localhost:9092"),
     #     value_deserializer=lambda m: json.loads(m.decode('utf-8'))
     # )
-    # print("🟢 Abonné au topic Kafka: aggTrade")
+    # print("🟢 Abonné au topic Kafka: trade")
     # for msg in consumerAggTrade:
     #     print(f"📦 Message reçu: {msg.value}")
 

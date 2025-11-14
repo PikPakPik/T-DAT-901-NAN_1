@@ -1,14 +1,14 @@
 """
-AggTrade Handler
+trade Handler
 =================
 
-Handler spécialisé pour le topic aggTrade (trades agrégés).
+Handler spécialisé pour le topic trade (trades agrégés).
 """
 
 from typing import Dict, Any, Optional
 
 from .base_handler import BaseHandler
-from ..models.aggtrade_models import AggTradeRecord, AggTradeMetrics
+from ..models.aggtrade_models import TradeRecord, TradeMetrics
 from ..aggregators.trade_aggregator import TradeAggregator
 from ..aggregators.price_aggregator import PriceAggregator
 from ..aggregators.volume_aggregator import VolumeAggregator
@@ -17,23 +17,23 @@ from ..utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-class AggTradeHandler(BaseHandler[AggTradeRecord, AggTradeMetrics]):
+class TradeHandler(BaseHandler[TradeRecord, TradeMetrics]):
     """Handler spécialisé pour les trades agrégés."""
     
     def __init__(self, window_seconds: int = 1, max_memory_windows: int = 1000):
         """
-        Initialise le handler AggTrade.
+        Initialise le handler trade.
         
         Args:
             window_seconds: Taille des fenêtres temporelles
             max_memory_windows: Nombre maximum de fenêtres en mémoire
         """
-        super().__init__("aggTrade")
+        super().__init__("trade")
         
         # Initialise les agrégateurs spécialisés
         self._init_aggregators(window_seconds, max_memory_windows)
         
-        logger.info(f"AggTradeHandler initialized with {len(self.aggregators)} aggregators")
+        logger.info(f"TradeHandler initialized with {len(self.aggregators)} aggregators")
     
     def _init_aggregators(self, window_seconds: int, max_memory_windows: int):
         """Initialise tous les agrégateurs pour les trades."""
@@ -59,7 +59,7 @@ class AggTradeHandler(BaseHandler[AggTradeRecord, AggTradeMetrics]):
         self.add_aggregator(volume_agg)
     
     def _is_valid_message(self, message: Dict[str, Any]) -> bool:
-        """Vérifie si un message aggTrade est valide."""
+        """Vérifie si un message trade est valide."""
         if not message.get("value"):
             return False
         
@@ -68,12 +68,12 @@ class AggTradeHandler(BaseHandler[AggTradeRecord, AggTradeMetrics]):
         
         return all(field in value for field in required_fields)
     
-    def _create_record_from_message(self, message: Dict[str, Any]) -> Optional[AggTradeRecord]:
-        """Crée un AggTradeRecord depuis un message Kafka."""
+    def _create_record_from_message(self, message: Dict[str, Any]) -> Optional[TradeRecord]:
+        """Crée un TradeRecord depuis un message Kafka."""
         try:
-            return AggTradeRecord.from_dict(message["value"])
+            return TradeRecord.from_dict(message["value"])
         except (KeyError, ValueError, TypeError) as e:
-            logger.debug(f"Failed to create AggTradeRecord: {e}")
+            logger.debug(f"Failed to create TradeRecord: {e}")
             return None
     
     def get_summary(self) -> Dict[str, Any]:
@@ -81,7 +81,7 @@ class AggTradeHandler(BaseHandler[AggTradeRecord, AggTradeMetrics]):
         stats = self.get_stats()
         
         return {
-            "handler": "AggTradeHandler",
+            "handler": "TradeHandler",
             "topic": self.topic_name,
             "total_messages": stats["messages_processed"],
             "valid_records": stats["records_created"],

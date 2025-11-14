@@ -4,19 +4,19 @@
 from .base_models import BaseRecord, BaseMetrics
 
 # Import des modèles spécialisés par topic
-from .aggtrade_models import AggTradeRecord, AggTradeMetrics
+from .aggtrade_models import TradeRecord, TradeMetrics
 from .kline_models import KlineRecord, KlineMetrics
 
 # Import des anciens modèles pour compatibilité
-from .trade_models import TradeRecord, WindowMetrics, AggregatedMetrics
+from .trade_models import WindowMetrics, AggregatedMetrics
 
 __all__ = [
     # Modèles de base
     'BaseRecord', 'BaseMetrics',
-    # Modèles aggTrade
-    'AggTradeRecord', 'AggTradeMetrics', 
+    # Modèles trade
+    'TradeRecord', 'TradeMetrics', 
     # Modèles kline
     'KlineRecord', 'KlineMetrics',
     # Anciens modèles (compatibility)
-    'TradeRecord', 'WindowMetrics', 'AggregatedMetrics'
+    'WindowMetrics', 'AggregatedMetrics'
 ]

@@ -1,8 +1,8 @@
 """
-AggTrade Models
+trade Models
 ================
 
-Modèles spécifiques pour les données de trades agrégés (aggTrade topic).
+Modèles spécifiques pour les données de trades agrégés (trade topic).
 """
 
 from dataclasses import dataclass, field
@@ -11,7 +11,7 @@ from .base_models import BaseRecord, BaseMetrics
 
 
 @dataclass
-class AggTradeRecord(BaseRecord):
+class TradeRecord(BaseRecord):
     """Représente un trade agrégé individuel."""
     
     price: float
@@ -21,8 +21,8 @@ class AggTradeRecord(BaseRecord):
     order_id: Optional[int] = None
     
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'AggTradeRecord':
-        """Crée un AggTradeRecord depuis un dictionnaire."""
+    def from_dict(cls, data: Dict[str, Any]) -> 'TradeRecord':
+        """Crée un TradeRecord depuis un dictionnaire."""
         return cls(
             symbol=data.get("s", ""),
             price=float(data.get("p", 0)),
@@ -62,7 +62,7 @@ class AggTradeRecord(BaseRecord):
 
 
 @dataclass
-class AggTradeMetrics(BaseMetrics):
+class TradeMetrics(BaseMetrics):
     """Métriques finales pour les trades agrégés."""
     
     # Métriques de base
@@ -86,7 +86,7 @@ class AggTradeMetrics(BaseMetrics):
     def to_dict(self) -> Dict[str, Any]:
         """Convertit en dictionnaire pour InfluxDB."""
         return {
-            "measurement": "aggtrade_metrics",
+            "measurement": "trade_metrics",
             "tags": {
                 "symbol": self.symbol,
             },

@@ -103,7 +103,7 @@ class KafkaClient:
         if not message.value:
             return False
         
-        if message.topic != "aggTrade":
+        if message.topic != "trade":
             return False
         
         value = message.value

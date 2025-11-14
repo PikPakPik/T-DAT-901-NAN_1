@@ -2,13 +2,13 @@
 Trade Aggregator
 =================
 
-Agrégateur spécialisé pour les données de trades (aggTrade topic).
+Agrégateur spécialisé pour les données de trades (trade topic).
 """
 
 from typing import List, Optional
 
 from .base_aggregator import BaseAggregator, WindowData
-from ..models.aggtrade_models import AggTradeRecord, AggTradeMetrics
+from ..models.aggtrade_models import TradeRecord, TradeMetrics
 from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -39,7 +39,7 @@ class TradeWindowData(WindowData):
         self.first_trade_time: Optional[int] = None
         self.last_trade_time: Optional[int] = None
     
-    def add_record(self, record: AggTradeRecord):
+    def add_record(self, record: TradeRecord):
         """Ajoute un trade à la fenêtre."""
         # Métriques de base
         self.volume += record.quantity
@@ -68,10 +68,10 @@ class TradeWindowData(WindowData):
             price_change = record.price - self.prices[-2]
             self.price_changes.append(price_change)
     
-    def finalize(self) -> AggTradeMetrics:
+    def finalize(self) -> TradeMetrics:
         """Finalise les métriques de trades."""
         if self.count == 0:
-            return AggTradeMetrics(
+            return TradeMetrics(
                 symbol=self.symbol,
                 window_start=self.window_start,
                 window_end=self.window_end
@@ -88,7 +88,7 @@ class TradeWindowData(WindowData):
         buyer_maker_ratio = self.buyer_volume / self.volume if self.volume > 0 else 0.0
         seller_maker_ratio = self.seller_volume / self.volume if self.volume > 0 else 0.0
         
-        return AggTradeMetrics(
+        return TradeMetrics(
             symbol=self.symbol,
             window_start=self.window_start,
             window_end=self.window_end,
@@ -125,14 +125,14 @@ class TradeWindowData(WindowData):
         return variance ** 0.5
 
 
-class TradeAggregator(BaseAggregator[AggTradeRecord, AggTradeMetrics]):
+class TradeAggregator(BaseAggregator[TradeRecord, TradeMetrics]):
     """Agrégateur optimisé pour les trades."""
     
     def _create_window_data(self, symbol: str, window_key: str) -> TradeWindowData:
         """Crée une nouvelle fenêtre de données pour les trades."""
         return TradeWindowData(symbol=symbol, window_start=window_key)
     
-    def _should_process_record(self, record: AggTradeRecord) -> bool:
+    def _should_process_record(self, record: TradeRecord) -> bool:
         """Détermine si un trade doit être traité."""
         # Vérifie la validité des données du trade
         return (

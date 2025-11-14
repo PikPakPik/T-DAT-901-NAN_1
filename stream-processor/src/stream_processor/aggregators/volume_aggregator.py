@@ -8,7 +8,7 @@ Agrégateur spécialisé pour les métriques de volume et de trading.
 from typing import List
 
 from .base_aggregator import BaseAggregator, WindowData
-from ..models.aggtrade_models import AggTradeRecord, AggTradeMetrics
+from ..models.aggtrade_models import TradeRecord, TradeMetrics
 from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -34,7 +34,7 @@ class VolumeWindowData(WindowData):
         self.trade_sizes: List[float] = []
         self.notional_values: List[float] = []
     
-    def add_record(self, record: AggTradeRecord):
+    def add_record(self, record: TradeRecord):
         """Ajoute un trade pour les métriques de volume."""
         self.count += 1
         
@@ -54,10 +54,10 @@ class VolumeWindowData(WindowData):
         self.trade_sizes.append(record.quantity)
         self.notional_values.append(record.notional_value)
     
-    def finalize(self) -> AggTradeMetrics:
+    def finalize(self) -> TradeMetrics:
         """Finalise les métriques de volume."""
         if self.count == 0:
-            return AggTradeMetrics(
+            return TradeMetrics(
                 symbol=self.symbol,
                 window_start=self.window_start,
                 window_end=self.window_end
@@ -67,7 +67,7 @@ class VolumeWindowData(WindowData):
         buyer_maker_ratio = self.buy_volume / self.total_volume if self.total_volume > 0 else 0.0
         seller_maker_ratio = self.sell_volume / self.total_volume if self.total_volume > 0 else 0.0
         
-        return AggTradeMetrics(
+        return TradeMetrics(
             symbol=self.symbol,
             window_start=self.window_start,
             window_end=self.window_end,
@@ -81,14 +81,14 @@ class VolumeWindowData(WindowData):
         )
 
 
-class VolumeAggregator(BaseAggregator[AggTradeRecord, AggTradeMetrics]):
+class VolumeAggregator(BaseAggregator[TradeRecord, TradeMetrics]):
     """Agrégateur spécialisé pour les métriques de volume."""
     
     def _create_window_data(self, symbol: str, window_key: str) -> VolumeWindowData:
         """Crée une nouvelle fenêtre de données pour les volumes."""
         return VolumeWindowData(symbol=symbol, window_start=window_key)
     
-    def _should_process_record(self, record: AggTradeRecord) -> bool:
+    def _should_process_record(self, record: TradeRecord) -> bool:
         """Détermine si un trade doit être traité pour les volumes."""
         return (
             record.symbol and 

@@ -22,11 +22,11 @@ async def listen_stream(url, stream_type, handler):
                 break
 
 """
-Données retournées par le stream aggTrade (Binance aggregated trade):
+Données retournées par le stream trade (Binance aggregated trade):
 Documentation: https://developers.binance.com/docs/binance-spot-api-docs/web-socket-streams#aggregate-trade-streams
 Exemple de payload reçu (format JSON):
 {
-  "e": "aggTrade",    # Event type
+  "e": "trade",    # Event type
   "E": 1672515782136,  # Event time
   "s": "BNBBTC",      # Symbol
   "a": 12345,          # Aggregate trade ID
@@ -41,12 +41,12 @@ Exemple de payload reçu (format JSON):
 Clés importantes : e, E, s, a, p, q, f, l, T, m, M
 """
 def agg_trade_handler(producer):
-    print("🟢 Starting aggTrade handler", flush=True)
+    print("🟢 Starting trade handler", flush=True)
     async def handler(data):
         try:
             keys = ["e", "E", "s", "t", "p", "q", "T", "m"]
             filtered = {k: data['data'][k] for k in keys if k in data['data']}
-            producer.send("aggTrade", filtered)
+            producer.send("trade", filtered)
             producer.flush()
             print(f"✅ Sent to Kafka: {filtered}", flush=True)
         except Exception as kafka_err:
@@ -125,16 +125,16 @@ def create_kafka_producer() -> KafkaProducer:
 async def main():
     wsServer = os.environ.get('BINANCE_WEBSOCKET_URL', "wss://stream.binance.com:443/stream?streams=")
 
-    aggTrade = os.environ.get('BINANCE_AGGREGATE_TRADE_STEAMS', "btcusdt@aggTrade,ethusdt@aggTrade").split(',')
+    trade = os.environ.get('BINANCE_AGGREGATE_TRADE_STEAMS', "btcusdt@trade,ethusdt@trade").split(',')
     kline = os.environ.get('BINANCE_KLINE_STREAMS', "btcusdt@kline_1m,ethusdt@kline_1m").split(',')
 
-    aggTradeFormattedUrl = wsServer + "/".join(aggTrade)
+    aggTradeFormattedUrl = wsServer + "/".join(trade)
     klineFormattedUrl = wsServer + "/".join(kline)
 
     producer = create_kafka_producer()
 
     tasks = [
-        listen_stream(aggTradeFormattedUrl, "aggTrade", agg_trade_handler(producer)),
+        listen_stream(aggTradeFormattedUrl, "trade", agg_trade_handler(producer)),
         listen_stream(klineFormattedUrl, "kline", kline_handler(producer))
     ]
 

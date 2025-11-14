@@ -122,7 +122,7 @@ class InfluxDBClient:
     def _metrics_to_point(self, metrics: BaseMetrics) -> Point:
         """Convertit les métriques en point InfluxDB de manière générique."""
         # Détermine le type de métriques et le measurement approprié
-        measurement = "aggtrade_1s"
+        measurement = "trade_1s"
         if 'kline' in metrics.__class__.__name__.lower():
             measurement = "kline_1s"
         
