@@ -5,9 +5,7 @@ Trade Aggregator Core
 Agrégateur de trades avec fenêtrage temporel et calcul de métriques avancées.
 """
 
-import time
 from typing import Dict, Optional, List
-from collections import defaultdict
 
 from ..utils.logger import get_logger
 from ..utils.helpers import iso_floor_to_second, get_current_timestamp

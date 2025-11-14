@@ -7,7 +7,6 @@ Modèles de données pour les trades et métriques agrégées.
 
 from dataclasses import dataclass, field
 from typing import Dict, Any, Optional, List
-from datetime import datetime
 
 
 @dataclass
@@ -76,22 +75,17 @@ class WindowMetrics:
     trade_count: int = 0
     
     # Métriques de prix
-    min_price: float = float('inf')
-    max_price: float = 0.0
+    min_price: Optional[float] = None
+    max_price: Optional[float] = None
     avg_price: float = 0.0
     
     # Métriques d'ordre
     buyer_volume: float = 0.0
     seller_volume: float = 0.0
     
-    # Métriques temporelles
-    first_trade_time: Optional[int] = None
-    last_trade_time: Optional[int] = None
-    
     # Données brutes pour calculs
     prices: List[float] = field(default_factory=list)
     quantities: List[float] = field(default_factory=list)
-    price_changes: List[float] = field(default_factory=list)
     
     def add_trade(self, trade: TradeRecord):
         """Ajoute un trade aux métriques."""
@@ -99,9 +93,15 @@ class WindowMetrics:
         self.volume += trade.quantity
         self.trade_count += 1
         
-        # Métriques de prix
-        self.min_price = min(self.min_price, trade.price)
-        self.max_price = max(self.max_price, trade.price)
+        # Métriques de prix - initialise avec le premier prix de la fenêtre
+        if self.min_price is None:
+            self.min_price = trade.price
+            self.max_price = trade.price
+        else:
+            # Met à jour min/max uniquement pour cette fenêtre
+            self.min_price = min(self.min_price, trade.price)
+            self.max_price = max(self.max_price, trade.price)
+        
         self.prices.append(trade.price)
         self.quantities.append(trade.quantity)
         
@@ -110,16 +110,6 @@ class WindowMetrics:
             self.seller_volume += trade.quantity
         else:
             self.buyer_volume += trade.quantity
-        
-        # Métriques temporelles
-        if self.first_trade_time is None:
-            self.first_trade_time = trade.timestamp
-        self.last_trade_time = trade.timestamp
-        
-        # Métriques de volatilité
-        if len(self.prices) > 1:
-            price_change = trade.price - self.prices[-2]
-            self.price_changes.append(price_change)
     
     def finalize(self) -> 'AggregatedMetrics':
         """Finalise les métriques et retourne les résultats agrégés."""
@@ -141,30 +131,12 @@ class WindowMetrics:
             window_end=self.window_end,
             volume=self.volume,
             trade_count=self.trade_count,
-            min_price=self.min_price if self.min_price != float('inf') else 0.0,
-            max_price=self.max_price,
+            min_price=self.min_price if self.min_price is not None else 0.0,
+            max_price=self.max_price if self.max_price is not None else 0.0,
             avg_price=self.avg_price,
             buyer_volume=self.buyer_volume,
             seller_volume=self.seller_volume,
         )
-    
-    def _calculate_median(self, values: List[float]) -> float:
-        """Calcule la médiane d'une liste de valeurs."""
-        sorted_values = sorted(values)
-        n = len(sorted_values)
-        if n % 2 == 0:
-            return (sorted_values[n//2 - 1] + sorted_values[n//2]) / 2
-        else:
-            return sorted_values[n//2]
-    
-    def _calculate_std(self, values: List[float]) -> float:
-        """Calcule l'écart-type d'une liste de valeurs."""
-        if len(values) <= 1:
-            return 0.0
-        
-        mean = sum(values) / len(values)
-        variance = sum((x - mean) ** 2 for x in values) / (len(values) - 1)
-        return variance ** 0.5
 
 
 @dataclass

@@ -121,10 +121,8 @@ class InfluxDBClient:
     
     def _metrics_to_point(self, metrics: BaseMetrics) -> Point:
         """Convertit les métriques en point InfluxDB de manière générique."""
-        # Détermine le type de métriques et le measurement approprié
+        # Measurement pour les trades
         measurement = "trade_1s"
-        if 'kline' in metrics.__class__.__name__.lower():
-            measurement = "kline_1s"
         
         point = Point(measurement).tag("symbol", metrics.symbol)
         
@@ -136,20 +134,24 @@ class InfluxDBClient:
             'min_price', 'max_price', 'avg_price',
             # Métriques d'ordre
             'buyer_volume', 'seller_volume',
-            # Métriques kline spécifiques
-            'open_price', 'high_price', 'low_price', 'close_price',
-            'price_change', 'price_change_percent', 'buy_sell_ratio'
         ]
         
-        # Ajoute tous les champs qui existent dans l'objet metrics
+        # Champs qui doivent toujours être écrits même s'ils sont à 0
+        always_write_fields = ['price_change', 'price_change_percent', 'trade_count']
+        
         for field_name in possible_fields:
             if hasattr(metrics, field_name):
                 try:
                     value = getattr(metrics, field_name)
+                    if value is None:
+                        continue
+                    
                     if isinstance(value, (int, float)):
+                        # Écrit les champs entiers comme int
                         if field_name in ['trade_count']:
                             point = point.field(field_name, int(value))
-                        elif value > 0 or field_name in ['price_change', 'price_change_percent']:
+                        # Écrit seulement si valeur != 0 ou champ dans always_write_fields
+                        elif value != 0 or field_name in always_write_fields:
                             point = point.field(field_name, float(value))
                 except Exception as e:
                     logger.debug(f"Could not add field {field_name}: {e}")

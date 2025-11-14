@@ -54,51 +54,6 @@ def agg_trade_handler(producer):
     return handler
 
 """
-Données retournées par le stream kline (Binance candlestick/kline):
-Documentation: https://developers.binance.com/docs/binance-spot-api-docs/web-socket-streams#klinecandlestick-streams-for-utc
-Exemple de payload reçu (format JSON):
-{
-  "e": "kline",         // Event type
-  "E": 1672515782136,   // Event time
-  "s": "BNBBTC",        // Symbol
-  "k": {
-    "t": 1672515780000, // Kline start time
-    "T": 1672515839999, // Kline close time
-    "s": "BNBBTC",      // Symbol
-    "i": "1m",          // Interval
-    "f": 100,           // First trade ID
-    "L": 200,           // Last trade ID
-    "o": "0.0010",      // Open price
-    "c": "0.0020",      // Close price
-    "h": "0.0025",      // High price
-    "l": "0.0015",      // Low price
-    "v": "1000",        // Base asset volume
-    "n": 100,           // Number of trades
-    "x": false,         // Is this kline closed?
-    "q": "1.0000",      // Quote asset volume
-    "V": "500",         // Taker buy base asset volume
-    "Q": "0.500",       // Taker buy quote asset volume
-    "B": "123456"       // Ignore
-  }
-}
-Clés importantes : e, E, s, t, T, s, i, o, c, h, l, v, n, x, q, V, Q
-"""
-def kline_handler(producer):
-    print("🟢 Starting kline handler", flush=True)
-    async def handler(data):
-        try:
-            root_keys = ["e", "E", "s"]
-            k_keys = ["t", "T", "s", "i", "o", "c", "h", "l", "v", "n", "x", "q", "V", "Q"]
-            filtered = {k: data['data'][k] for k in root_keys if k in data['data']}
-            filtered = {k: data['data']["k"][k] for k in k_keys if k in data['data']["k"]}
-            producer.send("kline", filtered)
-            producer.flush()
-            print(f"✅ Sent to Kafka: {filtered}", flush=True)
-        except Exception as kafka_err:
-            print(f"⚠️ Kafka send error: {kafka_err}", flush=True)
-    return handler
-
-"""
 Création d'un producteur Kafka avec gestion de la reconnexion.
 """
 def create_kafka_producer() -> KafkaProducer:
@@ -126,16 +81,13 @@ async def main():
     wsServer = os.environ.get('BINANCE_WEBSOCKET_URL', "wss://stream.binance.com:443/stream?streams=")
 
     trade = os.environ.get('BINANCE_AGGREGATE_TRADE_STEAMS', "btcusdt@trade,ethusdt@trade").split(',')
-    kline = os.environ.get('BINANCE_KLINE_STREAMS', "btcusdt@kline_1m,ethusdt@kline_1m").split(',')
 
     aggTradeFormattedUrl = wsServer + "/".join(trade)
-    klineFormattedUrl = wsServer + "/".join(kline)
 
     producer = create_kafka_producer()
 
     tasks = [
-        listen_stream(aggTradeFormattedUrl, "trade", agg_trade_handler(producer)),
-        listen_stream(klineFormattedUrl, "kline", kline_handler(producer))
+        listen_stream(aggTradeFormattedUrl, "trade", agg_trade_handler(producer))
     ]
 
     await asyncio.gather(*tasks)

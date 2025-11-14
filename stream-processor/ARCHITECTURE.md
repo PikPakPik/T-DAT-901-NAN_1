@@ -1,14 +1,14 @@
 # Stream Processor - Architecture Modulaire
 
+> 📚 **Documentation complémentaire** : Voir [AGGREGATION.md](./AGGREGATION.md) pour une explication détaillée de l'agrégation (quoi, pourquoi, comment).
 
-### Structure des dossiers
+## Structure des dossiers
 
 ```
 stream_processor/
 ├── handlers/              # 🎯 Handlers spécialisés par topic
 │   ├── base_handler.py    # Classe de base pour tous les handlers
-│   ├── aggtrade_handler.py # Handler pour les trades
-│   └── kline_handler.py   # Handler pour les klines/candlesticks
+│   └── aggtrade_handler.py # Handler pour les trades
 │
 ├── aggregators/           # 📊 Agrégateurs séparés par type de métriques
 │   ├── base_aggregator.py # Classe de base pour tous les agrégateurs
@@ -19,7 +19,6 @@ stream_processor/
 ├── models/                # 📋 Modèles spécialisés par type de données
 │   ├── base_models.py     # Modèles de base abstraits
 │   ├── aggtrade_models.py # Modèles pour les trades
-│   ├── kline_models.py    # Modèles pour klines
 │   └── trade_models.py    # Anciens modèles (compatibilité)
 │
 └── core/                  # 🏗️ Architecture orchestrée
@@ -39,7 +38,7 @@ Stream Orchestrator
      ↓
 Topic Router
      ↓
-Handler spécialisé (trade/kline)
+Handler spécialisé (trade)
      ↓
 Agrégateurs multiples (trade/price/volume)
      ↓

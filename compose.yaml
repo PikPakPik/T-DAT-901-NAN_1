@@ -71,7 +71,6 @@ services:
     environment:
       BINANCE_WEBSOCKET_URL: ${BINANCE_WEBSOCKET_URL}
       BINANCE_AGGREGATE_TRADE_STEAMS: ${BINANCE_AGGREGATE_TRADE_STEAMS}
-      BINANCE_KLINE_STREAMS: ${BINANCE_KLINE_STREAMS}
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
 
   scrapper:
@@ -123,12 +122,11 @@ services:
     environment:
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
       TOPIC_TRADE: ${TOPIC_TRADE:-trade}
-      TOPIC_KLINE: ${TOPIC_KLINE:-kline}
       INFLUX_URL: http://influxdb:8086
       INFLUX_TOKEN: ${DOCKER_INFLUXDBV2_ADMIN_TOKEN}
       INFLUX_ORG: ${DOCKER_INFLUXDB_INIT_ORG}
       INFLUX_BUCKET: ${DOCKER_INFLUXDB_INIT_BUCKET}
-      WINDOW_SECONDS: ${WINDOW_SECONDS:-1}
+      WINDOW_SECONDS: ${WINDOW_SECONDS:-5}
       INFLUX_BATCH_SIZE: ${INFLUX_BATCH_SIZE:-100}
     command: bash -lc "pip install --no-cache-dir -r requirements.txt && python -u main.py"
     restart: unless-stopped

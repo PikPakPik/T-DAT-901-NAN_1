@@ -61,7 +61,7 @@ class AppConfig:
     # Note: window_seconds est toujours forcé à 1 dans le code
     # InfluxDB gère l'agrégation temporelle via ses requêtes (GROUP BY time())
     window_seconds: int = 1
-    topics: List[str] = field(default_factory=lambda: ["trade", "kline"])
+    topics: List[str] = field(default_factory=lambda: ["trade"])
     log_level: LogLevel = LogLevel.INFO
     max_memory_windows: int = 1000
     cleanup_interval_seconds: int = 60
@@ -131,7 +131,6 @@ class ConfigManager:
             window_seconds=int(os.environ.get("WINDOW_SECONDS", "1")),
             topics=[
                 os.environ.get("TOPIC_TRADE", "trade"),
-                os.environ.get("TOPIC_KLINE", "kline"),
             ],
             log_level=LogLevel(os.environ.get("LOG_LEVEL", "INFO")),
             max_memory_windows=int(os.environ.get("MAX_MEMORY_WINDOWS", "1000")),

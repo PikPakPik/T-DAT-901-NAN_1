@@ -10,7 +10,6 @@ from typing import Dict, Any, List, Optional
 from ..utils.logger import get_logger
 from ..handlers.base_handler import BaseHandler
 from ..handlers.aggtrade_handler import TradeHandler
-from ..handlers.kline_handler import KlineHandler
 from ..models.base_models import BaseMetrics
 
 logger = get_logger(__name__)
@@ -53,14 +52,7 @@ class TopicRouter:
         )
         self.register_handler("trade", trade_handler)
         
-        # Handler pour kline
-        kline_handler = KlineHandler(
-            window_seconds=self.window_seconds,
-            max_memory_windows=self.max_memory_windows
-        )
-        self.register_handler("kline", kline_handler)
-        
-        logger.info("Default handlers registered for topics: trade, kline")
+        logger.info("Default handlers registered for topics: trade")
     
     def register_handler(self, topic: str, handler: BaseHandler):
         """

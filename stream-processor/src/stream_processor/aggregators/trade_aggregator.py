@@ -24,19 +24,14 @@ class TradeWindowData(WindowData):
         self.volume: float = 0.0
         
         # Métriques de prix
-        self.min_price: float = float('inf')
-        self.max_price: float = 0.0
+        self.min_price: Optional[float] = None
+        self.max_price: Optional[float] = None
         self.prices: List[float] = []
         self.quantities: List[float] = []
-        self.price_changes: List[float] = []
         
         # Métriques d'ordre
         self.buyer_volume: float = 0.0
         self.seller_volume: float = 0.0
-        
-        # Métriques temporelles
-        self.first_trade_time: Optional[int] = None
-        self.last_trade_time: Optional[int] = None
     
     def add_record(self, record: TradeRecord):
         """Ajoute un trade à la fenêtre."""
@@ -44,9 +39,15 @@ class TradeWindowData(WindowData):
         self.volume += record.quantity
         self.count += 1
         
-        # Métriques de prix
-        self.min_price = min(self.min_price, record.price)
-        self.max_price = max(self.max_price, record.price)
+        # Métriques de prix - initialise avec le premier prix de la fenêtre
+        if self.min_price is None:
+            self.min_price = record.price
+            self.max_price = record.price
+        else:
+            # Met à jour min/max uniquement pour cette fenêtre
+            self.min_price = min(self.min_price, record.price)
+            self.max_price = max(self.max_price, record.price)
+        
         self.prices.append(record.price)
         self.quantities.append(record.quantity)
         
@@ -55,16 +56,6 @@ class TradeWindowData(WindowData):
             self.seller_volume += record.quantity
         else:
             self.buyer_volume += record.quantity
-        
-        # Métriques temporelles
-        if self.first_trade_time is None:
-            self.first_trade_time = record.timestamp
-        self.last_trade_time = record.timestamp
-        
-        # Métriques de volatilité
-        if len(self.prices) > 1:
-            price_change = record.price - self.prices[-2]
-            self.price_changes.append(price_change)
     
     def finalize(self) -> TradeMetrics:
         """Finalise les métriques de trades."""
@@ -86,30 +77,12 @@ class TradeWindowData(WindowData):
             window_end=self.window_end,
             volume=self.volume,
             trade_count=self.count,
-            min_price=self.min_price if self.min_price != float('inf') else 0.0,
-            max_price=self.max_price,
+            min_price=self.min_price if self.min_price is not None else 0.0,
+            max_price=self.max_price if self.max_price is not None else 0.0,
             avg_price=avg_price,
             buyer_volume=self.buyer_volume,
             seller_volume=self.seller_volume,
         )
-    
-    def _calculate_median(self, values: List[float]) -> float:
-        """Calcule la médiane d'une liste de valeurs."""
-        sorted_values = sorted(values)
-        n = len(sorted_values)
-        if n % 2 == 0:
-            return (sorted_values[n//2 - 1] + sorted_values[n//2]) / 2
-        else:
-            return sorted_values[n//2]
-    
-    def _calculate_std(self, values: List[float]) -> float:
-        """Calcule l'écart-type d'une liste de valeurs."""
-        if len(values) <= 1:
-            return 0.0
-        
-        mean = sum(values) / len(values)
-        variance = sum((x - mean) ** 2 for x in values) / (len(values) - 1)
-        return variance ** 0.5
 
 
 class TradeAggregator(BaseAggregator[TradeRecord, TradeMetrics]):

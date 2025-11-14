@@ -4,7 +4,7 @@ Stream Processor - Version Modulaire Refactorisée
 ===================================================
 
 Version refactorisée avec architecture modulaire par topic :
-- Handlers spécialisés par topic (trade, kline)
+- Handlers spécialisés par topic (trade)
 - Agrégateurs séparés par type de métriques (trade, price, volume)
 - Routage automatique des messages par topic
 - Architecture plus maintenable et extensible
