@@ -75,27 +75,13 @@ class AggTradeMetrics(BaseMetrics):
     max_price: float = 0.0
     avg_price: float = 0.0
     median_price: float = 0.0
-    price_std: float = 0.0
     price_range: float = 0.0
-    vwap: float = 0.0
     
     # Métriques d'ordre
-    buyer_maker_count: int = 0
-    seller_maker_count: int = 0
     buyer_volume: float = 0.0
     seller_volume: float = 0.0
-    buy_pressure: float = 0.0
-    sell_pressure: float = 0.0
     buyer_maker_ratio: float = 0.0
     seller_maker_ratio: float = 0.0
-    
-    # Métriques de volatilité
-    price_volatility: float = 0.0
-    price_trend: float = 0.0
-    
-    # Métriques temporelles
-    trade_duration_ms: int = 0
-    trades_per_second: float = 0.0
     
     def to_dict(self) -> Dict[str, Any]:
         """Convertit en dictionnaire pour InfluxDB."""
@@ -113,20 +99,10 @@ class AggTradeMetrics(BaseMetrics):
                 "max_price": self.max_price,
                 "avg_price": self.avg_price,
                 "median_price": self.median_price,
-                "price_std": self.price_std,
                 "price_range": self.price_range,
-                "vwap": self.vwap,
-                "buyer_maker_count": self.buyer_maker_count,
-                "seller_maker_count": self.seller_maker_count,
                 "buyer_volume": self.buyer_volume,
                 "seller_volume": self.seller_volume,
-                "buy_pressure": self.buy_pressure,
-                "sell_pressure": self.sell_pressure,
                 "buyer_maker_ratio": self.buyer_maker_ratio,
                 "seller_maker_ratio": self.seller_maker_ratio,
-                "price_volatility": self.price_volatility,
-                "price_trend": self.price_trend,
-                "trade_duration_ms": self.trade_duration_ms,
-                "trades_per_second": self.trades_per_second,
             }
         }

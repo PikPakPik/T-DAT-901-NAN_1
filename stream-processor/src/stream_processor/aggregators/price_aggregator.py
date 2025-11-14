@@ -28,8 +28,6 @@ class PriceWindowData(WindowData):
         
         # Historique des prix
         self.prices: List[float] = []
-        self.weights: List[float] = []  # Volumes pour VWAP
-        self.price_changes: List[float] = []
         
         # Métriques temporelles
         self.first_timestamp: Optional[int] = None
@@ -51,12 +49,6 @@ class PriceWindowData(WindowData):
         
         # Historique
         self.prices.append(record.price)
-        self.weights.append(record.quantity)
-        
-        # Changes de prix
-        if len(self.prices) > 1:
-            price_change = record.price - self.prices[-2]
-            self.price_changes.append(price_change)
     
     def finalize(self) -> AggTradeMetrics:
         """Finalise les métriques de prix."""
@@ -70,19 +62,9 @@ class PriceWindowData(WindowData):
         # Calculs de prix
         avg_price = sum(self.prices) / len(self.prices) if self.prices else 0.0
         
-        # VWAP (Volume Weighted Average Price)
-        total_notional = sum(p * w for p, w in zip(self.prices, self.weights))
-        total_volume = sum(self.weights)
-        vwap = total_notional / total_volume if total_volume > 0 else 0.0
-        
         # Statistiques de prix
         median_price = self._calculate_median(self.prices) if self.prices else 0.0
-        price_std = self._calculate_std(self.prices) if self.prices else 0.0
         price_range = (self.high_price - self.low_price) if self.low_price != float('inf') else 0.0
-        
-        # Volatilité
-        price_volatility = self._calculate_std(self.price_changes) if self.price_changes else 0.0
-        price_trend = sum(self.price_changes) if self.price_changes else 0.0
         
         return AggTradeMetrics(
             symbol=self.symbol,
@@ -93,11 +75,7 @@ class PriceWindowData(WindowData):
             max_price=self.high_price,
             avg_price=avg_price,
             median_price=median_price,
-            price_std=price_std,
             price_range=price_range,
-            vwap=vwap,
-            price_volatility=price_volatility,
-            price_trend=price_trend,
         )
     
     def _calculate_median(self, values: List[float]) -> float:

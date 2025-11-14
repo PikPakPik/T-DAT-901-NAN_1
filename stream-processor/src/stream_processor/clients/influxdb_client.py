@@ -134,14 +134,10 @@ class InfluxDBClient:
             'volume', 'notional', 'trade_count',
             # Métriques de prix
             'min_price', 'max_price', 'avg_price', 'median_price', 
-            'price_std', 'price_range', 'vwap',
+            'price_range',
             # Métriques d'ordre
-            'buy_pressure', 'sell_pressure', 'buyer_maker_ratio', 'seller_maker_ratio',
-            'buyer_maker_count', 'seller_maker_count', 'buyer_volume', 'seller_volume',
-            # Métriques de volatilité
-            'price_volatility', 'price_trend',
-            # Métriques temporelles
-            'trades_per_second', 'trade_duration_ms',
+            'buyer_maker_ratio', 'seller_maker_ratio',
+            'buyer_volume', 'seller_volume',
             # Métriques kline spécifiques
             'open_price', 'high_price', 'low_price', 'close_price',
             'price_change', 'price_change_percent', 'buy_sell_ratio'
@@ -153,9 +149,9 @@ class InfluxDBClient:
                 try:
                     value = getattr(metrics, field_name)
                     if isinstance(value, (int, float)):
-                        if field_name in ['trade_count', 'buyer_maker_count', 'seller_maker_count', 'trade_duration_ms']:
+                        if field_name in ['trade_count']:
                             point = point.field(field_name, int(value))
-                        elif value > 0 or field_name in ['price_trend', 'price_change', 'price_change_percent']:
+                        elif value > 0 or field_name in ['price_change', 'price_change_percent']:
                             point = point.field(field_name, float(value))
                 except Exception as e:
                     logger.debug(f"Could not add field {field_name}: {e}")

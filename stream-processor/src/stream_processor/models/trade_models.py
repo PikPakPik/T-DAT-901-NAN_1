@@ -81,29 +81,17 @@ class WindowMetrics:
     max_price: float = 0.0
     avg_price: float = 0.0
     median_price: float = 0.0
-    price_std: float = 0.0
     price_range: float = 0.0
-    vwap: float = 0.0
     
     # Métriques d'ordre
-    buyer_maker_count: int = 0
-    seller_maker_count: int = 0
     buyer_volume: float = 0.0
     seller_volume: float = 0.0
-    buy_pressure: float = 0.0
-    sell_pressure: float = 0.0
     buyer_maker_ratio: float = 0.0
     seller_maker_ratio: float = 0.0
-    
-    # Métriques de volatilité
-    price_volatility: float = 0.0
-    price_trend: float = 0.0
     
     # Métriques temporelles
     first_trade_time: Optional[int] = None
     last_trade_time: Optional[int] = None
-    trade_duration_ms: int = 0
-    trades_per_second: float = 0.0
     
     # Données brutes pour calculs
     prices: List[float] = field(default_factory=list)
@@ -125,10 +113,8 @@ class WindowMetrics:
         
         # Métriques d'ordre
         if trade.is_buyer_maker:
-            self.buyer_maker_count += 1
             self.seller_volume += trade.quantity
         else:
-            self.seller_maker_count += 1
             self.buyer_volume += trade.quantity
         
         # Métriques temporelles
@@ -152,32 +138,16 @@ class WindowMetrics:
         
         # Calcul des métriques finales
         self.avg_price = self.notional / self.volume if self.volume > 0 else 0.0
-        self.vwap = self.notional / self.volume if self.volume > 0 else 0.0
         self.price_range = self.max_price - self.min_price
         
         # Calculs statistiques
         if self.prices:
             self.median_price = self._calculate_median(self.prices)
-            self.price_std = self._calculate_std(self.prices)
         
         # Métriques d'ordre
-        if self.volume > 0:
-            self.buy_pressure = self.buyer_volume / self.volume
-            self.sell_pressure = self.seller_volume / self.volume
-        
         if self.trade_count > 0:
-            self.buyer_maker_ratio = self.buyer_maker_count / self.trade_count
-            self.seller_maker_ratio = self.seller_maker_count / self.trade_count
-        
-        # Métriques de volatilité
-        if self.price_changes:
-            self.price_volatility = self._calculate_std(self.price_changes)
-            self.price_trend = sum(self.price_changes)
-        
-        # Métriques temporelles
-        if self.first_trade_time and self.last_trade_time:
-            self.trade_duration_ms = self.last_trade_time - self.first_trade_time
-            self.trades_per_second = self.trade_count / (self.trade_duration_ms / 1000) if self.trade_duration_ms > 0 else 0.0
+            self.buyer_maker_ratio = self.buyer_volume / self.volume if self.volume > 0 else 0.0
+            self.seller_maker_ratio = self.seller_volume / self.volume if self.volume > 0 else 0.0
         
         return AggregatedMetrics(
             symbol=self.symbol,
@@ -190,21 +160,11 @@ class WindowMetrics:
             max_price=self.max_price,
             avg_price=self.avg_price,
             median_price=self.median_price,
-            price_std=self.price_std,
             price_range=self.price_range,
-            vwap=self.vwap,
-            buyer_maker_count=self.buyer_maker_count,
-            seller_maker_count=self.seller_maker_count,
             buyer_volume=self.buyer_volume,
             seller_volume=self.seller_volume,
-            buy_pressure=self.buy_pressure,
-            sell_pressure=self.sell_pressure,
             buyer_maker_ratio=self.buyer_maker_ratio,
             seller_maker_ratio=self.seller_maker_ratio,
-            price_volatility=self.price_volatility,
-            price_trend=self.price_trend,
-            trade_duration_ms=self.trade_duration_ms,
-            trades_per_second=self.trades_per_second,
         )
     
     def _calculate_median(self, values: List[float]) -> float:
@@ -244,27 +204,13 @@ class AggregatedMetrics:
     max_price: float = 0.0
     avg_price: float = 0.0
     median_price: float = 0.0
-    price_std: float = 0.0
     price_range: float = 0.0
-    vwap: float = 0.0
     
     # Métriques d'ordre
-    buyer_maker_count: int = 0
-    seller_maker_count: int = 0
     buyer_volume: float = 0.0
     seller_volume: float = 0.0
-    buy_pressure: float = 0.0
-    sell_pressure: float = 0.0
     buyer_maker_ratio: float = 0.0
     seller_maker_ratio: float = 0.0
-    
-    # Métriques de volatilité
-    price_volatility: float = 0.0
-    price_trend: float = 0.0
-    
-    # Métriques temporelles
-    trade_duration_ms: int = 0
-    trades_per_second: float = 0.0
     
     def to_dict(self) -> Dict[str, Any]:
         """Convertit en dictionnaire pour InfluxDB."""
@@ -278,19 +224,9 @@ class AggregatedMetrics:
             "max_price": self.max_price,
             "avg_price": self.avg_price,
             "median_price": self.median_price,
-            "price_std": self.price_std,
             "price_range": self.price_range,
-            "vwap": self.vwap,
-            "buyer_maker_count": self.buyer_maker_count,
-            "seller_maker_count": self.seller_maker_count,
             "buyer_volume": self.buyer_volume,
             "seller_volume": self.seller_volume,
-            "buy_pressure": self.buy_pressure,
-            "sell_pressure": self.sell_pressure,
             "buyer_maker_ratio": self.buyer_maker_ratio,
             "seller_maker_ratio": self.seller_maker_ratio,
-            "price_volatility": self.price_volatility,
-            "price_trend": self.price_trend,
-            "trade_duration_ms": self.trade_duration_ms,
-            "trades_per_second": self.trades_per_second,
         }

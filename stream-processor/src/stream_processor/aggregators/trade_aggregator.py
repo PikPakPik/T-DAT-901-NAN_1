@@ -32,8 +32,6 @@ class TradeWindowData(WindowData):
         self.price_changes: List[float] = []
         
         # Métriques d'ordre
-        self.buyer_maker_count: int = 0
-        self.seller_maker_count: int = 0
         self.buyer_volume: float = 0.0
         self.seller_volume: float = 0.0
         
@@ -56,10 +54,8 @@ class TradeWindowData(WindowData):
         
         # Métriques d'ordre
         if record.is_buyer_maker:
-            self.buyer_maker_count += 1
             self.seller_volume += record.quantity
         else:
-            self.seller_maker_count += 1
             self.buyer_volume += record.quantity
         
         # Métriques temporelles
@@ -83,29 +79,14 @@ class TradeWindowData(WindowData):
         
         # Calcul des métriques finales
         avg_price = self.notional / self.volume if self.volume > 0 else 0.0
-        vwap = self.notional / self.volume if self.volume > 0 else 0.0
         price_range = self.max_price - self.min_price
         
         # Calculs statistiques
         median_price = self._calculate_median(self.prices) if self.prices else 0.0
-        price_std = self._calculate_std(self.prices) if self.prices else 0.0
         
         # Métriques d'ordre
-        buy_pressure = self.buyer_volume / self.volume if self.volume > 0 else 0.0
-        sell_pressure = self.seller_volume / self.volume if self.volume > 0 else 0.0
-        buyer_maker_ratio = self.buyer_maker_count / self.count if self.count > 0 else 0.0
-        seller_maker_ratio = self.seller_maker_count / self.count if self.count > 0 else 0.0
-        
-        # Métriques de volatilité
-        price_volatility = self._calculate_std(self.price_changes) if self.price_changes else 0.0
-        price_trend = sum(self.price_changes) if self.price_changes else 0.0
-        
-        # Métriques temporelles
-        trade_duration_ms = 0
-        trades_per_second = 0.0
-        if self.first_trade_time and self.last_trade_time:
-            trade_duration_ms = self.last_trade_time - self.first_trade_time
-            trades_per_second = self.count / (trade_duration_ms / 1000) if trade_duration_ms > 0 else 0.0
+        buyer_maker_ratio = self.buyer_volume / self.volume if self.volume > 0 else 0.0
+        seller_maker_ratio = self.seller_volume / self.volume if self.volume > 0 else 0.0
         
         return AggTradeMetrics(
             symbol=self.symbol,
@@ -118,21 +99,11 @@ class TradeWindowData(WindowData):
             max_price=self.max_price,
             avg_price=avg_price,
             median_price=median_price,
-            price_std=price_std,
             price_range=price_range,
-            vwap=vwap,
-            buyer_maker_count=self.buyer_maker_count,
-            seller_maker_count=self.seller_maker_count,
             buyer_volume=self.buyer_volume,
             seller_volume=self.seller_volume,
-            buy_pressure=buy_pressure,
-            sell_pressure=sell_pressure,
             buyer_maker_ratio=buyer_maker_ratio,
             seller_maker_ratio=seller_maker_ratio,
-            price_volatility=price_volatility,
-            price_trend=price_trend,
-            trade_duration_ms=trade_duration_ms,
-            trades_per_second=trades_per_second,
         )
     
     def _calculate_median(self, values: List[float]) -> float:

@@ -29,8 +29,6 @@ class VolumeWindowData(WindowData):
         # Compteurs de trades
         self.buy_count: int = 0
         self.sell_count: int = 0
-        self.buyer_maker_count: int = 0
-        self.seller_maker_count: int = 0
         
         # Distribution des tailles de trades
         self.trade_sizes: List[float] = []
@@ -52,12 +50,6 @@ class VolumeWindowData(WindowData):
             self.sell_volume += record.quantity
             self.sell_count += 1
         
-        # Classification maker
-        if record.is_buyer_maker:
-            self.buyer_maker_count += 1
-        else:
-            self.seller_maker_count += 1
-        
         # Distribution des tailles
         self.trade_sizes.append(record.quantity)
         self.notional_values.append(record.notional_value)
@@ -72,15 +64,8 @@ class VolumeWindowData(WindowData):
             )
         
         # Ratios de trading
-        buy_pressure = self.buy_volume / self.total_volume if self.total_volume > 0 else 0.0
-        sell_pressure = self.sell_volume / self.total_volume if self.total_volume > 0 else 0.0
-        
-        buyer_maker_ratio = self.buyer_maker_count / self.count if self.count > 0 else 0.0
-        seller_maker_ratio = self.seller_maker_count / self.count if self.count > 0 else 0.0
-        
-        # Métriques moyennes
-        avg_trade_size = self.total_volume / self.count if self.count > 0 else 0.0
-        avg_notional = self.total_notional / self.count if self.count > 0 else 0.0
+        buyer_maker_ratio = self.buy_volume / self.total_volume if self.total_volume > 0 else 0.0
+        seller_maker_ratio = self.sell_volume / self.total_volume if self.total_volume > 0 else 0.0
         
         return AggTradeMetrics(
             symbol=self.symbol,
@@ -89,12 +74,8 @@ class VolumeWindowData(WindowData):
             volume=self.total_volume,
             notional=self.total_notional,
             trade_count=self.count,
-            buyer_maker_count=self.buyer_maker_count,
-            seller_maker_count=self.seller_maker_count,
             buyer_volume=self.buy_volume,
             seller_volume=self.sell_volume,
-            buy_pressure=buy_pressure,
-            sell_pressure=sell_pressure,
             buyer_maker_ratio=buyer_maker_ratio,
             seller_maker_ratio=seller_maker_ratio,
         )
