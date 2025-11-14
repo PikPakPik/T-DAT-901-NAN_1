@@ -22,7 +22,6 @@ class VolumeWindowData(WindowData):
         
         # Volumes
         self.total_volume: float = 0.0
-        self.total_notional: float = 0.0
         self.buy_volume: float = 0.0
         self.sell_volume: float = 0.0
         
@@ -32,7 +31,6 @@ class VolumeWindowData(WindowData):
         
         # Distribution des tailles de trades
         self.trade_sizes: List[float] = []
-        self.notional_values: List[float] = []
     
     def add_record(self, record: TradeRecord):
         """Ajoute un trade pour les métriques de volume."""
@@ -40,7 +38,6 @@ class VolumeWindowData(WindowData):
         
         # Volumes totaux
         self.total_volume += record.quantity
-        self.total_notional += record.notional_value
         
         # Classification buy/sell
         if record.is_buy:
@@ -52,7 +49,6 @@ class VolumeWindowData(WindowData):
         
         # Distribution des tailles
         self.trade_sizes.append(record.quantity)
-        self.notional_values.append(record.notional_value)
     
     def finalize(self) -> TradeMetrics:
         """Finalise les métriques de volume."""
@@ -63,21 +59,14 @@ class VolumeWindowData(WindowData):
                 window_end=self.window_end
             )
         
-        # Ratios de trading
-        buyer_maker_ratio = self.buy_volume / self.total_volume if self.total_volume > 0 else 0.0
-        seller_maker_ratio = self.sell_volume / self.total_volume if self.total_volume > 0 else 0.0
-        
         return TradeMetrics(
             symbol=self.symbol,
             window_start=self.window_start,
             window_end=self.window_end,
             volume=self.total_volume,
-            notional=self.total_notional,
             trade_count=self.count,
             buyer_volume=self.buy_volume,
             seller_volume=self.sell_volume,
-            buyer_maker_ratio=buyer_maker_ratio,
-            seller_maker_ratio=seller_maker_ratio,
         )
 
 

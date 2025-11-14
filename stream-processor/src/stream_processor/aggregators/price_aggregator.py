@@ -62,10 +62,6 @@ class PriceWindowData(WindowData):
         # Calculs de prix
         avg_price = sum(self.prices) / len(self.prices) if self.prices else 0.0
         
-        # Statistiques de prix
-        median_price = self._calculate_median(self.prices) if self.prices else 0.0
-        price_range = (self.high_price - self.low_price) if self.low_price != float('inf') else 0.0
-        
         return TradeMetrics(
             symbol=self.symbol,
             window_start=self.window_start,
@@ -74,8 +70,6 @@ class PriceWindowData(WindowData):
             min_price=self.low_price if self.low_price != float('inf') else 0.0,
             max_price=self.high_price,
             avg_price=avg_price,
-            median_price=median_price,
-            price_range=price_range,
         )
     
     def _calculate_median(self, values: List[float]) -> float:

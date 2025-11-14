@@ -108,7 +108,6 @@ class KlineMetrics(BaseMetrics):
     # Métriques calculées
     price_change: float = 0.0
     price_change_percent: float = 0.0
-    price_range: float = 0.0
     avg_price: float = 0.0
     vwap: float = 0.0
     
@@ -136,7 +135,6 @@ class KlineMetrics(BaseMetrics):
                 "taker_buy_quote_asset_volume": self.taker_buy_quote_asset_volume,
                 "price_change": self.price_change,
                 "price_change_percent": self.price_change_percent,
-                "price_range": self.price_range,
                 "avg_price": self.avg_price,
                 "vwap": self.vwap,
                 "buy_sell_ratio": self.buy_sell_ratio,

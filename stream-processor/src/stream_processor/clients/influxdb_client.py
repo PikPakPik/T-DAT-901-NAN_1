@@ -131,12 +131,10 @@ class InfluxDBClient:
         # Liste des champs possibles à écrire
         possible_fields = [
             # Métriques de base
-            'volume', 'notional', 'trade_count',
+            'volume', 'trade_count',
             # Métriques de prix
-            'min_price', 'max_price', 'avg_price', 'median_price', 
-            'price_range',
+            'min_price', 'max_price', 'avg_price',
             # Métriques d'ordre
-            'buyer_maker_ratio', 'seller_maker_ratio',
             'buyer_volume', 'seller_volume',
             # Métriques kline spécifiques
             'open_price', 'high_price', 'low_price', 'close_price',

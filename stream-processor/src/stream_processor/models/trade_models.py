@@ -73,21 +73,16 @@ class WindowMetrics:
     
     # Métriques de base
     volume: float = 0.0
-    notional: float = 0.0
     trade_count: int = 0
     
     # Métriques de prix
     min_price: float = float('inf')
     max_price: float = 0.0
     avg_price: float = 0.0
-    median_price: float = 0.0
-    price_range: float = 0.0
     
     # Métriques d'ordre
     buyer_volume: float = 0.0
     seller_volume: float = 0.0
-    buyer_maker_ratio: float = 0.0
-    seller_maker_ratio: float = 0.0
     
     # Métriques temporelles
     first_trade_time: Optional[int] = None
@@ -102,7 +97,6 @@ class WindowMetrics:
         """Ajoute un trade aux métriques."""
         # Métriques de base
         self.volume += trade.quantity
-        self.notional += trade.notional_value
         self.trade_count += 1
         
         # Métriques de prix
@@ -137,34 +131,21 @@ class WindowMetrics:
             )
         
         # Calcul des métriques finales
-        self.avg_price = self.notional / self.volume if self.volume > 0 else 0.0
-        self.price_range = self.max_price - self.min_price
-        
-        # Calculs statistiques
-        if self.prices:
-            self.median_price = self._calculate_median(self.prices)
-        
-        # Métriques d'ordre
-        if self.trade_count > 0:
-            self.buyer_maker_ratio = self.buyer_volume / self.volume if self.volume > 0 else 0.0
-            self.seller_maker_ratio = self.seller_volume / self.volume if self.volume > 0 else 0.0
+        # avg_price = sum(price * quantity) / sum(quantity) = weighted average
+        total_notional = sum(price * qty for price, qty in zip(self.prices, self.quantities)) if self.prices else 0.0
+        self.avg_price = total_notional / self.volume if self.volume > 0 else 0.0
         
         return AggregatedMetrics(
             symbol=self.symbol,
             window_start=self.window_start,
             window_end=self.window_end,
             volume=self.volume,
-            notional=self.notional,
             trade_count=self.trade_count,
             min_price=self.min_price if self.min_price != float('inf') else 0.0,
             max_price=self.max_price,
             avg_price=self.avg_price,
-            median_price=self.median_price,
-            price_range=self.price_range,
             buyer_volume=self.buyer_volume,
             seller_volume=self.seller_volume,
-            buyer_maker_ratio=self.buyer_maker_ratio,
-            seller_maker_ratio=self.seller_maker_ratio,
         )
     
     def _calculate_median(self, values: List[float]) -> float:
@@ -196,21 +177,16 @@ class AggregatedMetrics:
     
     # Métriques de base
     volume: float = 0.0
-    notional: float = 0.0
     trade_count: int = 0
     
     # Métriques de prix
     min_price: float = 0.0
     max_price: float = 0.0
     avg_price: float = 0.0
-    median_price: float = 0.0
-    price_range: float = 0.0
     
     # Métriques d'ordre
     buyer_volume: float = 0.0
     seller_volume: float = 0.0
-    buyer_maker_ratio: float = 0.0
-    seller_maker_ratio: float = 0.0
     
     def to_dict(self) -> Dict[str, Any]:
         """Convertit en dictionnaire pour InfluxDB."""
@@ -218,15 +194,10 @@ class AggregatedMetrics:
             "symbol": self.symbol,
             "window": self.window_start,
             "volume": self.volume,
-            "notional": self.notional,
             "trade_count": self.trade_count,
             "min_price": self.min_price,
             "max_price": self.max_price,
             "avg_price": self.avg_price,
-            "median_price": self.median_price,
-            "price_range": self.price_range,
             "buyer_volume": self.buyer_volume,
             "seller_volume": self.seller_volume,
-            "buyer_maker_ratio": self.buyer_maker_ratio,
-            "seller_maker_ratio": self.seller_maker_ratio,
         }

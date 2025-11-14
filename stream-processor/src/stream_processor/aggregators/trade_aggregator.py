@@ -22,7 +22,6 @@ class TradeWindowData(WindowData):
         
         # Métriques de base
         self.volume: float = 0.0
-        self.notional: float = 0.0
         
         # Métriques de prix
         self.min_price: float = float('inf')
@@ -43,7 +42,6 @@ class TradeWindowData(WindowData):
         """Ajoute un trade à la fenêtre."""
         # Métriques de base
         self.volume += record.quantity
-        self.notional += record.notional_value
         self.count += 1
         
         # Métriques de prix
@@ -78,32 +76,21 @@ class TradeWindowData(WindowData):
             )
         
         # Calcul des métriques finales
-        avg_price = self.notional / self.volume if self.volume > 0 else 0.0
-        price_range = self.max_price - self.min_price
-        
-        # Calculs statistiques
-        median_price = self._calculate_median(self.prices) if self.prices else 0.0
-        
-        # Métriques d'ordre
-        buyer_maker_ratio = self.buyer_volume / self.volume if self.volume > 0 else 0.0
-        seller_maker_ratio = self.seller_volume / self.volume if self.volume > 0 else 0.0
+        # avg_price = sum(price * quantity) / sum(quantity) = weighted average
+        total_notional = sum(price * qty for price, qty in zip(self.prices, self.quantities)) if self.prices else 0.0
+        avg_price = total_notional / self.volume if self.volume > 0 else 0.0
         
         return TradeMetrics(
             symbol=self.symbol,
             window_start=self.window_start,
             window_end=self.window_end,
             volume=self.volume,
-            notional=self.notional,
             trade_count=self.count,
             min_price=self.min_price if self.min_price != float('inf') else 0.0,
             max_price=self.max_price,
             avg_price=avg_price,
-            median_price=median_price,
-            price_range=price_range,
             buyer_volume=self.buyer_volume,
             seller_volume=self.seller_volume,
-            buyer_maker_ratio=buyer_maker_ratio,
-            seller_maker_ratio=seller_maker_ratio,
         )
     
     def _calculate_median(self, values: List[float]) -> float:

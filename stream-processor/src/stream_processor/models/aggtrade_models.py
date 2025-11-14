@@ -67,21 +67,16 @@ class TradeMetrics(BaseMetrics):
     
     # Métriques de base
     volume: float = 0.0
-    notional: float = 0.0
     trade_count: int = 0
     
     # Métriques de prix
     min_price: float = 0.0
     max_price: float = 0.0
     avg_price: float = 0.0
-    median_price: float = 0.0
-    price_range: float = 0.0
     
     # Métriques d'ordre
     buyer_volume: float = 0.0
     seller_volume: float = 0.0
-    buyer_maker_ratio: float = 0.0
-    seller_maker_ratio: float = 0.0
     
     def to_dict(self) -> Dict[str, Any]:
         """Convertit en dictionnaire pour InfluxDB."""
@@ -93,16 +88,11 @@ class TradeMetrics(BaseMetrics):
             "fields": {
                 "window": self.window_start,
                 "volume": self.volume,
-                "notional": self.notional,
                 "trade_count": self.trade_count,
                 "min_price": self.min_price,
                 "max_price": self.max_price,
                 "avg_price": self.avg_price,
-                "median_price": self.median_price,
-                "price_range": self.price_range,
                 "buyer_volume": self.buyer_volume,
                 "seller_volume": self.seller_volume,
-                "buyer_maker_ratio": self.buyer_maker_ratio,
-                "seller_maker_ratio": self.seller_maker_ratio,
             }
         }

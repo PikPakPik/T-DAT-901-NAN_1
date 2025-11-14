@@ -199,7 +199,6 @@ class TradeAggregator:
                     "window_start": window.window_start,
                     "trade_count": window.trade_count,
                     "volume": window.volume,
-                    "notional": window.notional,
                 })
         
         return symbol_windows
