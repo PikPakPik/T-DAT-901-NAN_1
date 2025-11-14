@@ -60,9 +60,9 @@ services:
         condition: service_healthy
 
   scrapper-websocket:
-    build:
-      context: .docker/
-      dockerfile: dev.Dockerfile
+    image: python:alpine
+    command: sh -c "pip install --no-cache-dir -r requirements.txt && python main.py"
+    working_dir: /usr/share/app
     volumes:
       - ./scrapper-websocket:/usr/share/app
     depends_on:
@@ -74,10 +74,17 @@ services:
       BINANCE_KLINE_STREAMS: ${BINANCE_KLINE_STREAMS}
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
 
+  scrapper-ws-mock:
+    image: python:alpine
+    command: sh -c "pip install --no-cache-dir -r requirements.txt && python ws-mocked.py"
+    working_dir: /usr/share/app
+    volumes:
+      - ./scrapper-websocket:/usr/share/app
+
   scrapper:
-    build:
-      context: .docker/
-      dockerfile: dev.Dockerfile
+    image: python:alpine
+    command: sh -c "pip install --no-cache-dir -r requirements.txt && python main.py"
+    working_dir: /usr/share/app
     volumes:
       - ./scrapper:/usr/share/app
 
@@ -94,6 +101,7 @@ services:
       DOCKER_INFLUXDB_INIT_ORG: ${DOCKER_INFLUXDB_INIT_ORG}
       DOCKER_INFLUXDB_INIT_BUCKET: ${DOCKER_INFLUXDB_INIT_BUCKET}
       DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${DOCKER_INFLUXDBV2_ADMIN_TOKEN}
+  
   grafana:
     image: grafana/grafana
     volumes:
