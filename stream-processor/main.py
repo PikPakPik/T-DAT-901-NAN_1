@@ -25,7 +25,7 @@ import time
 import duckdb
 from kafka import KafkaConsumer
 from influxdb_client import InfluxDBClient, Point
-from influxdb_client.client.write_api import SYNCHRONOUS
+from influxdb_client.client.write_api import ASYNCHRONOUS
 from datetime import datetime, timedelta
 from collections import defaultdict
 
@@ -37,8 +37,10 @@ INFLUX_TOKEN = os.getenv('INFLUX_TOKEN')
 INFLUX_ORG = os.getenv('INFLUX_ORG', 'cryptoviz')
 INFLUX_BUCKET = os.getenv('INFLUX_BUCKET', 'home')
 WINDOW_SECONDS = int(os.getenv('WINDOW_SECONDS', '5'))
-KAFKA_BATCH_SIZE = int(os.getenv('KAFKA_BATCH_SIZE', '1000'))
-KAFKA_POLL_TIMEOUT_MS = int(os.getenv('KAFKA_POLL_TIMEOUT_MS', '1000'))
+KAFKA_BATCH_SIZE = int(os.getenv('KAFKA_BATCH_SIZE', '100'))  # Batch encore plus petit pour traiter plus vite
+KAFKA_POLL_TIMEOUT_MS = int(os.getenv('KAFKA_POLL_TIMEOUT_MS', '100'))  # Poll très fréquent
+KAFKA_MAX_POLL_RECORDS = int(os.getenv('KAFKA_MAX_POLL_RECORDS', '1000'))  # Beaucoup plus de messages par poll
+AGGR_INTERVAL_SECONDS = float(os.getenv('AGGR_INTERVAL_SECONDS', '1.0'))  # Agrégation toutes les secondes
 KAFKA_GROUP_ID = os.getenv('KAFKA_GROUP_ID', 'duckdb-stream-processor')
 # Identifiant unique pour cette instance (utile pour les logs avec plusieurs consumers)
 INSTANCE_ID = os.getenv('HOSTNAME', os.getenv('INSTANCE_ID', 'stream-processor-1'))
@@ -54,8 +56,11 @@ def create_kafka_consumer():
         value_deserializer=lambda m: json.loads(m.decode('utf-8')),
         auto_offset_reset='latest',
         enable_auto_commit=True,
+        auto_commit_interval_ms=1000,  # Commit toutes les secondes pour réduire le lag
         group_id=KAFKA_GROUP_ID,
-        consumer_timeout_ms=KAFKA_POLL_TIMEOUT_MS
+        consumer_timeout_ms=KAFKA_POLL_TIMEOUT_MS,
+        max_poll_records=KAFKA_MAX_POLL_RECORDS,  # Plus de messages par poll
+        max_poll_interval_ms=300000  # Timeout de 5 minutes pour le poll
     )
     
     print(f"✅ [{INSTANCE_ID}] Kafka consumer created (group_id: {KAFKA_GROUP_ID})", flush=True)
@@ -176,9 +181,9 @@ def write_to_influxdb(aggregated_data, write_api):
         
         points.append(point)
     
-        if points:
-            write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=points)
-            print(f"✅ [{INSTANCE_ID}] Written {len(points)} points to InfluxDB", flush=True)
+    if points:
+        write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=points)
+        print(f"✅ [{INSTANCE_ID}] Written {len(points)} points to InfluxDB", flush=True)
 
 
 def main():
@@ -193,12 +198,15 @@ def main():
     print(f"   - Bucket: {INFLUX_BUCKET}", flush=True)
     print(f"   - Window: {WINDOW_SECONDS} seconds", flush=True)
     print(f"   - Batch size: {KAFKA_BATCH_SIZE}", flush=True)
+    print(f"   - Poll timeout: {KAFKA_POLL_TIMEOUT_MS}ms", flush=True)
+    print(f"   - Max poll records: {KAFKA_MAX_POLL_RECORDS}", flush=True)
+    print(f"   - Aggregation interval: {AGGR_INTERVAL_SECONDS}s", flush=True)
     
     try:
         # Initialiser les connexions
         consumer = create_kafka_consumer()
         influx_client = create_influx_client()
-        write_api = influx_client.write_api(write_options=SYNCHRONOUS)
+        write_api = influx_client.write_api(write_options=ASYNCHRONOUS)  # Asynchrone pour ne pas bloquer
         conn = create_duckdb_connection()
         
         print(f"✅ [{INSTANCE_ID}] All connections established. Starting to process trades...", flush=True)
@@ -258,10 +266,12 @@ def main():
                             continue
                 
                 # Agrégation périodique ou quand le buffer est plein
+                # Agrégation très fréquente pour réduire le lag
                 current_time = time.time()
                 should_aggregate = (
                     len(trades_buffer) >= KAFKA_BATCH_SIZE or
-                    (current_time - last_aggregation_time) >= WINDOW_SECONDS
+                    (current_time - last_aggregation_time) >= AGGR_INTERVAL_SECONDS or  # Agrégation très fréquente
+                    (len(trades_buffer) > 0 and len(message_batch) == 0)  # Traiter immédiatement si pas de nouveaux messages
                 )
                 
                 if should_aggregate and trades_buffer:
@@ -282,8 +292,9 @@ def main():
                         traceback.print_exc()
                         trades_buffer.clear()  # Vider le buffer en cas d'erreur
                 
-                # Petite pause pour éviter de surcharger le CPU
-                time.sleep(0.1)
+                # Pas de pause si on a des messages, pause très courte sinon
+                if len(message_batch) == 0 and len(trades_buffer) == 0:
+                    time.sleep(0.001)  # Pause minimale seulement si vraiment rien à faire
                 
             except KeyboardInterrupt:
                 print(f"\n🛑 [{INSTANCE_ID}] Stopping stream processor...", flush=True)
@@ -295,6 +306,7 @@ def main():
                 time.sleep(1)  # Attendre avant de réessayer
         
         # Nettoyage
+        write_api.close()  # Fermer proprement l'API async
         consumer.close()
         influx_client.close()
         conn.close()

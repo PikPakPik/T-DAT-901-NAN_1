@@ -1,11 +1,9 @@
-import asyncio
 import json
 import time
-from datetime import datetime
-from typing import List, Dict, Any
-import websockets
+import os
 from faker import Faker
 import random
+from kafka import KafkaProducer
 
 fake = Faker()
 
@@ -54,7 +52,30 @@ PRICE_RANGES = {
 price_cache = {symbol: random.uniform(*PRICE_RANGES.get(symbol, (1, 100))) for symbol in CRYPTO_PAIRS}
 
 
-def generate_aggtrade_event(symbol: str) -> Dict[str, Any]:
+def create_kafka_producer() -> KafkaProducer:
+    """Crée un producteur Kafka avec gestion de la reconnexion."""
+    bootstrap = os.environ.get('KAFKA_BOOTSTRAP_SERVERS') or "kafka:29092"
+    attempt = 1
+    while True:
+        try:
+            print(f"🔌 Connecting to Kafka at {bootstrap} (attempt {attempt})", flush=True)
+            producer = KafkaProducer(
+                bootstrap_servers=bootstrap,
+                value_serializer=lambda v: json.dumps(v).encode('utf-8'),
+                compression_type='gzip'
+            )
+            # Validate connection by fetching metadata
+            producer.partitions_for('trade')
+            print("✅ Kafka connection established", flush=True)
+            return producer
+        except Exception as e:
+            print(f"⏳ Kafka not ready: {e}. Retrying in 3s...", flush=True)
+            time.sleep(3)
+            attempt += 1
+
+
+def generate_aggtrade_data(symbol: str) -> dict:
+    """Génère un événement aggTrade au format Kafka (comme main.py)."""
     current_price = price_cache[symbol]
     # Variation légère du prix (marché réaliste)
     price_variation = random.uniform(-0.001, 0.001)
@@ -63,133 +84,70 @@ def generate_aggtrade_event(symbol: str) -> Dict[str, Any]:
     
     current_time = int(time.time() * 1000)
     
+    # Format identique à main.py
     return {
-        "stream": f"{symbol.lower()}@aggTrade",
-        "data": {
-            "e": "aggTrade",
-            "E": current_time,
-            "s": symbol,
-            "a": fake.random_int(min=1000000, max=9999999),
-            "p": f"{new_price:.8f}",
-            "q": f"{random.uniform(0.001, 10):.8f}",
-            "f": fake.random_int(min=100000, max=999999),
-            "l": fake.random_int(min=100000, max=999999),
-            "T": current_time,
-            "m": random.choice([True, False]),
-            "M": True
-        }
+        "e": "trade",  # Event type
+        "E": current_time,  # Event time
+        "s": symbol,  # Symbol
+        "t": fake.random_int(min=1000000, max=9999999),  # Trade ID
+        "p": f"{new_price:.8f}",  # Price
+        "q": f"{random.uniform(0.001, 10):.8f}",  # Quantity
+        "T": current_time,  # Trade time
+        "m": random.choice([True, False])  # Is buyer maker
     }
 
 
-def generate_kline_event(symbol: str, interval: str = "1m") -> Dict[str, Any]:
-    current_price = price_cache[symbol]
-    current_time = int(time.time() * 1000)
-    
-    # Génération d'une bougie réaliste
-    open_price = current_price * random.uniform(0.998, 1.002)
-    close_price = open_price * random.uniform(0.995, 1.005)
-    high_price = max(open_price, close_price) * random.uniform(1.0, 1.003)
-    low_price = min(open_price, close_price) * random.uniform(0.997, 1.0)
-    
-    base_volume = random.uniform(100, 10000)
-    quote_volume = base_volume * current_price
-    
-    return {
-        "stream": f"{symbol.lower()}@kline_{interval}",
-        "data": {
-            "e": "kline",
-            "E": current_time,
-            "s": symbol,
-            "k": {
-                "t": current_time - 60000,
-                "T": current_time + 60000,
-                "s": symbol,
-                "i": interval,
-                "f": fake.random_int(min=100000, max=999999),
-                "L": fake.random_int(min=100000, max=999999),
-                "o": f"{open_price:.8f}",
-                "c": f"{close_price:.8f}",
-                "h": f"{high_price:.8f}",
-                "l": f"{low_price:.8f}",
-                "v": f"{base_volume:.8f}",
-                "n": fake.random_int(min=50, max=500),
-                "x": random.choice([True, False]),
-                "q": f"{quote_volume:.8f}",
-                "V": f"{base_volume * 0.6:.8f}",
-                "Q": f"{quote_volume * 0.6:.8f}",
-                "B": "0"
-            }
-        }
-    }
-
-
-async def data_generator(events_per_second: int = 100):
+def main():
+    """Génère des données mockées et les envoie à Kafka."""
+    # Configuration
+    events_per_second = int(os.environ.get('MOCK_EVENTS_PER_SECOND', '100'))
     delay = 1.0 / events_per_second
     
-    while True:
-        # Sélection aléatoire d'une crypto et d'un type d'événement
-        symbol = random.choice(CRYPTO_PAIRS)
-        event_type = random.choice(["aggTrade", "kline"])
-        
-        if event_type == "aggTrade":
-            event = generate_aggtrade_event(symbol)
-        else:
-            event = generate_kline_event(symbol)
-        
-        yield event
-        await asyncio.sleep(delay)
-
-
-async def websocket_handler(websocket):
-    client_id = f"{websocket.remote_address[0]}:{websocket.remote_address[1]}"
-    print(f"🟢 Client connecté: {client_id}", flush=True)
+    print("🚀 MOCK DATA GENERATOR - Spamming Kafka", flush=True)
+    print(f"💰 {len(CRYPTO_PAIRS)} paires crypto configurées", flush=True)
+    print(f"📊 Volume: {events_per_second} événements/seconde", flush=True)
+    
+    # Création du producteur Kafka
+    kafka_producer = create_kafka_producer()
+    
+    event_count = 0
+    start_time = time.time()
     
     try:
-        # Configuration de la volumétrie via query params (optionnel)
-        # Par défaut: 2000 événements/seconde
-        events_per_second = 2000
-        
-        event_count = 0
-        start_time = time.time()
-        
-        async for event in data_generator(events_per_second):
+        while True:
+            # Sélection aléatoire d'une crypto
+            symbol = random.choice(CRYPTO_PAIRS)
+            
+            # Génération de l'événement aggTrade
+            trade_data = generate_aggtrade_data(symbol)
+            
+            # Envoi à Kafka
             try:
-                await websocket.send(json.dumps(event))
+                kafka_producer.send("trade", trade_data)
                 event_count += 1
                 
                 # Statistiques toutes les 10 secondes
                 if event_count % (events_per_second * 10) == 0:
                     elapsed = time.time() - start_time
                     rate = event_count / elapsed
-                    print(f"📊 {client_id} | {event_count} events | {rate:.1f} events/s", flush=True)
+                    print(f"📊 {event_count} events envoyés | {rate:.1f} events/s", flush=True)
                     
-            except websockets.exceptions.ConnectionClosed:
-                print(f"🔴 Client déconnecté: {client_id}", flush=True)
-                break
-                
+            except Exception as kafka_err:
+                print(f"⚠️ Kafka send error: {kafka_err}", flush=True)
+            
+            # Attente pour respecter le taux d'événements/seconde
+            time.sleep(delay)
+            
+    except KeyboardInterrupt:
+        print("\n🛑 Arrêt du générateur par l'utilisateur", flush=True)
     except Exception as e:
-        print(f"⚠️ Erreur avec client {client_id}: {e}", flush=True)
+        print(f"❌ Erreur fatale: {e}", flush=True)
     finally:
-        print(f"🔌 Fermeture connexion: {client_id} ({event_count} events envoyés)", flush=True)
-
-
-async def main():
-    host = "0.0.0.0"
-    port = 8765
-    
-    print("🚀 SERVEUR WEBSOCKET MOCK BINANCE", flush=True)
-    print(f"📡 Écoute sur ws://{host}:{port}", flush=True)
-    print(f"💰 {len(CRYPTO_PAIRS)} paires crypto configurées", flush=True)
-    
-    server = await websockets.serve(websocket_handler, host, port)
-    print("✅ Serveur prêt à recevoir des connexions!", flush=True)
-    await asyncio.Future()  # Run forever
+        kafka_producer.flush()
+        kafka_producer.close()
+        elapsed = time.time() - start_time
+        print(f"✅ Arrêt: {event_count} événements envoyés en {elapsed:.1f}s", flush=True)
 
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        print("\n🛑 Arrêt du serveur par l'utilisateur", flush=True)
-    except Exception as e:
-        print(f"❌ Erreur fatale: {e}", flush=True)
+    main()

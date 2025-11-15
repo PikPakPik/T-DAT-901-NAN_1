@@ -43,7 +43,7 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/29092' || exit 1"]
       interval: 10s
-      timeout: 15s
+      timeout: 30s
       retries: 6
   
   kafka-ui:
@@ -79,6 +79,11 @@ services:
     working_dir: /usr/share/app
     volumes:
       - ./scrapper-websocket:/usr/share/app
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
 
   scrapper:
     image: python:alpine
@@ -134,8 +139,10 @@ services:
       INFLUX_ORG: ${DOCKER_INFLUXDB_INIT_ORG}
       INFLUX_BUCKET: ${DOCKER_INFLUXDB_INIT_BUCKET}
       WINDOW_SECONDS: ${WINDOW_SECONDS:-60}
-      KAFKA_BATCH_SIZE: ${KAFKA_BATCH_SIZE:-1000}
-      KAFKA_POLL_TIMEOUT_MS: ${KAFKA_POLL_TIMEOUT_MS:-1000}
+      KAFKA_BATCH_SIZE: ${KAFKA_BATCH_SIZE:-100}
+      KAFKA_POLL_TIMEOUT_MS: ${KAFKA_POLL_TIMEOUT_MS:-100}
+      KAFKA_MAX_POLL_RECORDS: ${KAFKA_MAX_POLL_RECORDS:-1000}
+      AGGR_INTERVAL_SECONDS: ${AGGR_INTERVAL_SECONDS:-1.0}
       KAFKA_GROUP_ID: ${KAFKA_GROUP_ID:-duckdb-stream-processor}
       INSTANCE_ID: ${HOSTNAME}
     restart: unless-stopped
