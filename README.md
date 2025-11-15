@@ -1,5 +1,11 @@
 # Crypto Stream Processing - Architecture Globale
 
+> 📚 **Documentation détaillée** : Consultez les fichiers dans `docs/` pour des explications approfondies :
+> - [`docs/KAFKA.md`](docs/KAFKA.md) : Pourquoi Kafka, group_id, paramètres Kafka, fonctionnement
+> - [`docs/STREAM_PROCESSOR.md`](docs/STREAM_PROCESSOR.md) : Comment fonctionne l'agrégation, boucle principale
+> - [`docs/DUCKDB.md`](docs/DUCKDB.md) : Pourquoi DuckDB, comment il agrège les données
+> - [`docs/CODE.md`](docs/CODE.md) : Documentation détaillée de toutes les fonctions et du code
+
 ## 📋 Vue d'ensemble
 
 Ce projet est un système de traitement de données cryptographiques en temps réel qui collecte, traite, agrège et visualise les trades de différentes paires de cryptomonnaies. Le système est conçu pour être scalable, performant et facile à maintenir.
