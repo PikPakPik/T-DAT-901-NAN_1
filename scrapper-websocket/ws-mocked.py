@@ -75,31 +75,45 @@ def create_kafka_producer() -> KafkaProducer:
 
 
 def generate_aggtrade_data(symbol: str) -> dict:
-    """Génère un événement aggTrade au format Kafka (comme main.py)."""
+    """
+    Génère un événement de trade agrégé mocké au format Kafka.
+    
+    Simule une variation de prix réaliste (±0.1%) et génère des données
+    cohérentes avec le format attendu par le stream-processor.
+    
+    Args:
+        symbol: Symbole de la crypto (ex: "BTCUSDT").
+        
+    Returns:
+        Dictionnaire avec les champs : e, E, s, t, p, q, T, m.
+    """
     current_price = price_cache[symbol]
-    # Variation légère du prix (marché réaliste)
     price_variation = random.uniform(-0.001, 0.001)
     new_price = current_price * (1 + price_variation)
     price_cache[symbol] = new_price
     
     current_time = int(time.time() * 1000)
     
-    # Format identique à main.py
     return {
-        "e": "trade",  # Event type
-        "E": current_time,  # Event time
-        "s": symbol,  # Symbol
-        "t": fake.random_int(min=1000000, max=9999999),  # Trade ID
-        "p": f"{new_price:.8f}",  # Price
-        "q": f"{random.uniform(0.001, 10):.8f}",  # Quantity
-        "T": current_time,  # Trade time
-        "m": random.choice([True, False])  # Is buyer maker
+        "e": "trade",
+        "E": current_time,
+        "s": symbol,
+        "t": fake.random_int(min=1000000, max=9999999),
+        "p": f"{new_price:.8f}",
+        "q": f"{random.uniform(0.001, 10):.8f}",
+        "T": current_time,
+        "m": random.choice([True, False])
     }
 
 
-def main():
-    """Génère des données mockées et les envoie à Kafka."""
-    # Configuration
+def main() -> None:
+    """
+    Point d'entrée : génère des trades mockés et les envoie dans Kafka.
+    
+    Génère des événements à la fréquence configurée (MOCK_EVENTS_PER_SECOND),
+    sélectionne aléatoirement une crypto parmi les 30 configurées et affiche
+    des statistiques toutes les 10 secondes.
+    """
     events_per_second = int(os.environ.get('MOCK_EVENTS_PER_SECOND', '100'))
     delay = 1.0 / events_per_second
     
@@ -107,7 +121,6 @@ def main():
     print(f"💰 {len(CRYPTO_PAIRS)} paires crypto configurées", flush=True)
     print(f"📊 Volume: {events_per_second} événements/seconde", flush=True)
     
-    # Création du producteur Kafka
     kafka_producer = create_kafka_producer()
     
     event_count = 0
@@ -115,18 +128,13 @@ def main():
     
     try:
         while True:
-            # Sélection aléatoire d'une crypto
             symbol = random.choice(CRYPTO_PAIRS)
-            
-            # Génération de l'événement aggTrade
             trade_data = generate_aggtrade_data(symbol)
             
-            # Envoi à Kafka
             try:
                 kafka_producer.send("trade", trade_data)
                 event_count += 1
                 
-                # Statistiques toutes les 10 secondes
                 if event_count % (events_per_second * 10) == 0:
                     elapsed = time.time() - start_time
                     rate = event_count / elapsed
@@ -135,7 +143,6 @@ def main():
             except Exception as kafka_err:
                 print(f"⚠️ Kafka send error: {kafka_err}", flush=True)
             
-            # Attente pour respecter le taux d'événements/seconde
             time.sleep(delay)
             
     except KeyboardInterrupt:

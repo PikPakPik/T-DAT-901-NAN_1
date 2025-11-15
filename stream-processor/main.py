@@ -1,22 +1,8 @@
 """
-Service de traitement de stream avec DuckDB.
+Service de traitement de stream cryptographique avec DuckDB.
 
-Ce service :
-1. Lit les trades depuis Kafka (topic "trade") par micro-batches
-2. Agrège les données par fenêtre temporelle avec DuckDB (max, min, prix moyen, volumes, volatilité)
-3. Envoie les résultats dans InfluxDB
-
-Format des données Kafka :
-{
-    "e": "trade",
-    "E": 1763117480982,
-    "s": "BTCUSDT",
-    "t": 5488678497,
-    "p": "97094.00000000",
-    "q": "0.00006000",
-    "T": 1763117480981,
-    "m": true
-}
+Consomme les trades depuis Kafka, les agrège par fenêtre temporelle et écrit
+les résultats dans InfluxDB pour visualisation dans Grafana.
 """
 import os
 import sys
@@ -26,10 +12,8 @@ import duckdb
 from kafka import KafkaConsumer
 from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import ASYNCHRONOUS
-from datetime import datetime, timedelta
-from collections import defaultdict
+from datetime import datetime
 
-# Configuration depuis les variables d'environnement
 KAFKA_BOOTSTRAP_SERVERS = os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'kafka:29092')
 TOPIC_TRADE = os.getenv('TOPIC_TRADE', 'trade')
 INFLUX_URL = os.getenv('INFLUX_URL', 'http://influxdb:8086')
@@ -37,17 +21,21 @@ INFLUX_TOKEN = os.getenv('INFLUX_TOKEN')
 INFLUX_ORG = os.getenv('INFLUX_ORG', 'cryptoviz')
 INFLUX_BUCKET = os.getenv('INFLUX_BUCKET', 'home')
 WINDOW_SECONDS = int(os.getenv('WINDOW_SECONDS', '5'))
-KAFKA_BATCH_SIZE = int(os.getenv('KAFKA_BATCH_SIZE', '100'))  # Batch encore plus petit pour traiter plus vite
-KAFKA_POLL_TIMEOUT_MS = int(os.getenv('KAFKA_POLL_TIMEOUT_MS', '100'))  # Poll très fréquent
-KAFKA_MAX_POLL_RECORDS = int(os.getenv('KAFKA_MAX_POLL_RECORDS', '1000'))  # Beaucoup plus de messages par poll
-AGGR_INTERVAL_SECONDS = float(os.getenv('AGGR_INTERVAL_SECONDS', '1.0'))  # Agrégation toutes les secondes
+KAFKA_BATCH_SIZE = int(os.getenv('KAFKA_BATCH_SIZE', '100'))
+KAFKA_POLL_TIMEOUT_MS = int(os.getenv('KAFKA_POLL_TIMEOUT_MS', '100'))
+KAFKA_MAX_POLL_RECORDS = int(os.getenv('KAFKA_MAX_POLL_RECORDS', '1000'))
+AGGR_INTERVAL_SECONDS = float(os.getenv('AGGR_INTERVAL_SECONDS', '1.0'))
 KAFKA_GROUP_ID = os.getenv('KAFKA_GROUP_ID', 'duckdb-stream-processor')
-# Identifiant unique pour cette instance (utile pour les logs avec plusieurs consumers)
 INSTANCE_ID = os.getenv('HOSTNAME', os.getenv('INSTANCE_ID', 'stream-processor-1'))
 
 
-def create_kafka_consumer():
-    """Crée et configure le consumer Kafka."""
+def create_kafka_consumer() -> KafkaConsumer:
+    """
+    Initialise et configure un consumer Kafka pour le topic trade.
+    
+    Returns:
+        KafkaConsumer: Consumer configuré avec auto-commit et group ID.
+    """
     print(f"🔌 [{INSTANCE_ID}] Connecting to Kafka at {KAFKA_BOOTSTRAP_SERVERS}...", flush=True)
     
     consumer = KafkaConsumer(
@@ -56,19 +44,27 @@ def create_kafka_consumer():
         value_deserializer=lambda m: json.loads(m.decode('utf-8')),
         auto_offset_reset='latest',
         enable_auto_commit=True,
-        auto_commit_interval_ms=1000,  # Commit toutes les secondes pour réduire le lag
+        auto_commit_interval_ms=1000,
         group_id=KAFKA_GROUP_ID,
         consumer_timeout_ms=KAFKA_POLL_TIMEOUT_MS,
-        max_poll_records=KAFKA_MAX_POLL_RECORDS,  # Plus de messages par poll
-        max_poll_interval_ms=300000  # Timeout de 5 minutes pour le poll
+        max_poll_records=KAFKA_MAX_POLL_RECORDS,
+        max_poll_interval_ms=300000
     )
     
     print(f"✅ [{INSTANCE_ID}] Kafka consumer created (group_id: {KAFKA_GROUP_ID})", flush=True)
     return consumer
 
 
-def create_influx_client():
-    """Crée le client InfluxDB."""
+def create_influx_client() -> InfluxDBClient:
+    """
+    Initialise le client InfluxDB avec les credentials de l'environnement.
+    
+    Returns:
+        InfluxDBClient: Client configuré pour écrire dans InfluxDB.
+        
+    Raises:
+        ValueError: Si INFLUX_TOKEN n'est pas défini.
+    """
     if not INFLUX_TOKEN:
         raise ValueError("INFLUX_TOKEN environment variable is required")
     
@@ -79,11 +75,15 @@ def create_influx_client():
     )
 
 
-def create_duckdb_connection():
-    """Crée une connexion DuckDB en mémoire."""
+def create_duckdb_connection() -> duckdb.DuckDBPyConnection:
+    """
+    Crée une connexion DuckDB en mémoire avec le schéma de la table trades.
+    
+    Returns:
+        duckdb.DuckDBPyConnection: Connexion DuckDB configurée.
+    """
     conn = duckdb.connect(':memory:')
     
-    # Créer la table pour les trades
     conn.execute("""
         CREATE TABLE trades (
             event_time BIGINT,
@@ -102,19 +102,30 @@ def create_duckdb_connection():
     return conn
 
 
-def process_trades(conn, trades_data):
-    """Charge les trades dans DuckDB et retourne les données agrégées."""
+def process_trades(conn: duckdb.DuckDBPyConnection, trades_data: list) -> list:
+    """
+    Charge les trades dans DuckDB et calcule les agrégations par fenêtre.
+    
+    Les fenêtres sont calculées en arrondissant trade_time à la fenêtre la plus proche
+    de WINDOW_SECONDS. Calcule min/max/avg prix, volumes buy/sell/total, volatilité
+    et nombre de trades par fenêtre et symbole.
+    
+    Args:
+        conn: Connexion DuckDB avec la table trades créée.
+        trades_data: Liste de tuples (event_time, symbol, trade_id, price, quantity,
+                     trade_time, is_buyer_maker, volume, volume_buy, volume_sell).
+    
+    Returns:
+        Liste de tuples (window_start, symbol, price_max, price_min, price_avg,
+                        volume_buy, volume_sell, volume_total, price_stddev, trade_count).
+    """
     if not trades_data:
         return []
     
-    # Insérer les données dans DuckDB
     conn.executemany("""
         INSERT INTO trades VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, trades_data)
     
-    # Agrégation par fenêtre temporelle et symbole
-    # On utilise des fenêtres de WINDOW_SECONDS basées sur trade_time
-    # DuckDB utilise epoch_ms pour les timestamps en millisecondes
     query = f"""
         SELECT 
             CAST(FLOOR(trade_time / ({WINDOW_SECONDS} * 1000)) * ({WINDOW_SECONDS} * 1000) AS BIGINT) AS window_start,
@@ -135,15 +146,22 @@ def process_trades(conn, trades_data):
     """
     
     result = conn.execute(query).fetchall()
-    
-    # Vider la table pour le prochain batch
     conn.execute("DELETE FROM trades")
     
     return result
 
 
-def write_to_influxdb(aggregated_data, write_api):
-    """Écrit les données agrégées dans InfluxDB."""
+def write_to_influxdb(aggregated_data: list, write_api) -> None:
+    """
+    Convertit les données agrégées en Points InfluxDB et les écrit.
+    
+    Calcule la volatilité (coefficient de variation) et convertit les timestamps
+    en format datetime pour InfluxDB.
+    
+    Args:
+        aggregated_data: Liste de tuples depuis process_trades().
+        write_api: InfluxDB write API (asynchrone).
+    """
     if not aggregated_data:
         return
     
@@ -151,12 +169,9 @@ def write_to_influxdb(aggregated_data, write_api):
     for row in aggregated_data:
         window_start, symbol, price_max, price_min, price_avg, volume_buy, volume_sell, volume_total, price_stddev, trade_count = row
         
-        # Calculer la volatilité (coefficient de variation en pourcentage)
         volatility = 0.0
         if price_stddev is not None and price_avg is not None and price_avg > 0:
             volatility = (price_stddev / price_avg) * 100
-        
-        # Convertir window_start (timestamp en ms) en datetime
         if isinstance(window_start, (int, float)):
             window_dt = datetime.fromtimestamp(window_start / 1000.0)
         elif isinstance(window_start, str):
@@ -186,8 +201,13 @@ def write_to_influxdb(aggregated_data, write_api):
         print(f"✅ [{INSTANCE_ID}] Written {len(points)} points to InfluxDB", flush=True)
 
 
-def main():
-    """Point d'entrée principal."""
+def main() -> None:
+    """
+    Point d'entrée principal du stream processor.
+    
+    Initialise les connexions Kafka, InfluxDB et DuckDB, puis boucle infiniment
+    pour consommer les trades, les agréger et les écrire dans InfluxDB.
+    """
     print(f"🚀 [{INSTANCE_ID}] Starting DuckDB Stream Processor...", flush=True)
     print(f"📊 [{INSTANCE_ID}] Configuration:", flush=True)
     print(f"   - Instance ID: {INSTANCE_ID}", flush=True)
@@ -203,10 +223,9 @@ def main():
     print(f"   - Aggregation interval: {AGGR_INTERVAL_SECONDS}s", flush=True)
     
     try:
-        # Initialiser les connexions
         consumer = create_kafka_consumer()
         influx_client = create_influx_client()
-        write_api = influx_client.write_api(write_options=ASYNCHRONOUS)  # Asynchrone pour ne pas bloquer
+        write_api = influx_client.write_api(write_options=ASYNCHRONOUS)
         conn = create_duckdb_connection()
         
         print(f"✅ [{INSTANCE_ID}] All connections established. Starting to process trades...", flush=True)
@@ -216,7 +235,6 @@ def main():
         
         while True:
             try:
-                # Lire les messages depuis Kafka
                 message_batch = consumer.poll(timeout_ms=KAFKA_POLL_TIMEOUT_MS)
                 
                 for topic_partition, messages in message_batch.items():
@@ -224,7 +242,6 @@ def main():
                         try:
                             data = message.value
                             
-                            # Valider et extraire les données
                             if not all(k in data for k in ['s', 'p', 'q', 'T', 'm']):
                                 continue
                             
@@ -265,36 +282,28 @@ def main():
                             print(f"⚠️ [{INSTANCE_ID}] Error processing message: {e}", flush=True)
                             continue
                 
-                # Agrégation périodique ou quand le buffer est plein
-                # Agrégation très fréquente pour réduire le lag
                 current_time = time.time()
                 should_aggregate = (
                     len(trades_buffer) >= KAFKA_BATCH_SIZE or
-                    (current_time - last_aggregation_time) >= AGGR_INTERVAL_SECONDS or  # Agrégation très fréquente
-                    (len(trades_buffer) > 0 and len(message_batch) == 0)  # Traiter immédiatement si pas de nouveaux messages
+                    (current_time - last_aggregation_time) >= AGGR_INTERVAL_SECONDS or
+                    (len(trades_buffer) > 0 and len(message_batch) == 0)
                 )
                 
                 if should_aggregate and trades_buffer:
                     try:
-                        # Traiter les trades avec DuckDB
                         aggregated_data = process_trades(conn, trades_buffer)
-                        
-                        # Écrire dans InfluxDB
                         if aggregated_data:
                             write_to_influxdb(aggregated_data, write_api)
-                        
                         trades_buffer.clear()
                         last_aggregation_time = current_time
-                        
                     except Exception as e:
                         print(f"❌ [{INSTANCE_ID}] Error in aggregation: {e}", flush=True)
                         import traceback
                         traceback.print_exc()
-                        trades_buffer.clear()  # Vider le buffer en cas d'erreur
+                        trades_buffer.clear()
                 
-                # Pas de pause si on a des messages, pause très courte sinon
                 if len(message_batch) == 0 and len(trades_buffer) == 0:
-                    time.sleep(0.001)  # Pause minimale seulement si vraiment rien à faire
+                    time.sleep(0.001)
                 
             except KeyboardInterrupt:
                 print(f"\n🛑 [{INSTANCE_ID}] Stopping stream processor...", flush=True)
@@ -303,10 +312,9 @@ def main():
                 print(f"❌ [{INSTANCE_ID}] Error in main loop: {e}", flush=True)
                 import traceback
                 traceback.print_exc()
-                time.sleep(1)  # Attendre avant de réessayer
+                time.sleep(1)
         
-        # Nettoyage
-        write_api.close()  # Fermer proprement l'API async
+        write_api.close()
         consumer.close()
         influx_client.close()
         conn.close()

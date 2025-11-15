@@ -5,10 +5,16 @@ import websockets
 from kafka import KafkaProducer
 import time
 
-"""
-Établissement d'une connexion WebSocket à Binance et envoi des données reçues à Kafka.
-"""
-async def listen_stream(url, stream_type, handler):
+
+async def listen_stream(url: str, stream_type: str, handler) -> None:
+    """
+    Écoute un stream WebSocket Binance et appelle le handler pour chaque message.
+    
+    Args:
+        url: URL du stream WebSocket Binance.
+        stream_type: Type de stream (pour les logs).
+        handler: Fonction async appelée avec chaque message reçu.
+    """
     print(f"🟡 Try to connect on {stream_type} stream: {url}", flush=True)
     async with websockets.connect(url) as websocket:
         print(f"✅ Connected to {stream_type} stream: {url}", flush=True)
@@ -21,26 +27,23 @@ async def listen_stream(url, stream_type, handler):
                 print(f"⚠️ Error in {stream_type} stream: {e}", flush=True)
                 break
 
-"""
-Données retournées par le stream trade (Binance aggregated trade):
-Documentation: https://developers.binance.com/docs/binance-spot-api-docs/web-socket-streams#aggregate-trade-streams
-Exemple de payload reçu (format JSON):
-{
-  "e": "trade",    # Event type
-  "E": 1672515782136,  # Event time
-  "s": "BNBBTC",      # Symbol
-  "a": 12345,          # Aggregate trade ID
-  "p": "0.001",      # Price
-  "q": "100",        # Quantity
-  "f": 100,           # First trade ID
-  "l": 105,           # Last trade ID
-  "T": 1672515782136, # Trade time
-  "m": true,          # Is the buyer the market maker?
-  "M": true           # Ignore
-}
-Clés importantes : e, E, s, a, p, q, f, l, T, m, M
-"""
-def agg_trade_handler(producer):
+
+def agg_trade_handler(producer: KafkaProducer):
+    """
+    Crée un handler pour les événements de trade agrégés Binance.
+    
+    Le handler extrait les champs nécessaires et envoie le trade dans Kafka.
+    Format attendu : {"stream": "...", "data": {"e": "trade", "s": "...", ...}}
+    
+    Args:
+        producer: Producteur Kafka configuré.
+        
+    Returns:
+        Fonction async handler pour les messages WebSocket.
+        
+    Reference:
+        https://developers.binance.com/docs/binance-spot-api-docs/web-socket-streams#aggregate-trade-streams
+    """
     print("🟢 Starting trade handler", flush=True)
     async def handler(data):
         try:
@@ -53,11 +56,17 @@ def agg_trade_handler(producer):
             print(f"⚠️ Kafka send error: {kafka_err}", flush=True)
     return handler
 
-"""
-Création d'un producteur Kafka avec gestion de la reconnexion.
-"""
+
 def create_kafka_producer() -> KafkaProducer:
-    # Treat empty env var as unset and fallback to docker-internal default
+    """
+    Crée un producteur Kafka avec gestion de la reconnexion automatique.
+    
+    Tente de se connecter indéfiniment avec retry toutes les 3 secondes
+    jusqu'à ce que Kafka soit disponible.
+    
+    Returns:
+        KafkaProducer: Producteur configuré avec compression gzip.
+    """
     bootstrap = os.environ.get('KAFKA_BOOTSTRAP_SERVERS') or "kafka:29092"
     attempt = 1
     while True:
@@ -68,8 +77,7 @@ def create_kafka_producer() -> KafkaProducer:
                 value_serializer=lambda v: json.dumps(v).encode('utf-8'),
                 compression_type='gzip'
             )
-            # Validate connection by fetching metadata
-            producer.partitions_for('healthcheck-topic')
+            producer.partitions_for('trade')
             print("✅ Kafka connection established", flush=True)
             return producer
         except Exception as e:
@@ -77,7 +85,14 @@ def create_kafka_producer() -> KafkaProducer:
             time.sleep(3)
             attempt += 1
 
-async def main():
+
+async def main() -> None:
+    """
+    Point d'entrée principal : connecte aux streams Binance et envoie dans Kafka.
+    
+    Configure les streams depuis les variables d'environnement et lance
+    l'écoute asynchrone des trades agrégés.
+    """
     wsServer = os.environ.get('BINANCE_WEBSOCKET_URL', "wss://stream.binance.com:443/stream?streams=")
 
     trade = os.environ.get('BINANCE_AGGREGATE_TRADE_STEAMS', "btcusdt@trade,ethusdt@trade").split(',')
