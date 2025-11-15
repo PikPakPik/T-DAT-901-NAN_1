@@ -124,7 +124,7 @@
             "type": "influxdb",
             "uid": "P951FEA4DE68E13C5"
           },
-          "query": "from(bucket: \"home\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"trade_1s\")\n  |> filter(fn: (r) => r[\"_field\"] == \"avg_price\")\n  |> filter(fn: (r) => r[\"symbol\"] == \"BTCUSDT\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: \"mean\")",
+          "query": "from(bucket: \"home\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"crypto_aggregates\")\n  |> filter(fn: (r) => r[\"_field\"] == \"price_avg\")\n  |> filter(fn: (r) => r[\"symbol\"] == \"BTCUSDT\")\n  |> yield(name: \"mean\")",
           "refId": "A"
         }
       ],
@@ -160,7 +160,6 @@
             "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 2,
-            "fillOpacity": 0,
             "pointSize": 5,
             "scaleDistribution": {
               "type": "linear"
@@ -282,7 +281,7 @@
             "type": "influxdb",
             "uid": "P951FEA4DE68E13C5"
           },
-          "query": "from(bucket: \"home\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"trade_1s\")\n  |> filter(fn: (r) => r[\"_field\"] == \"avg_price\")\n  |> filter(fn: (r) => r[\"symbol\"] == \"BTCUSDT\")\n  |> aggregateWindow(every: v.windowPeriod, fn: last, createEmpty: false)\n  |> yield(name: \"Current Price\")",
+          "query": "from(bucket: \"home\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"crypto_aggregates\")\n  |> filter(fn: (r) => r[\"_field\"] == \"price_avg\")\n  |> filter(fn: (r) => r[\"symbol\"] == \"BTCUSDT\")\n  |> yield(name: \"Current Price\")",
           "refId": "A"
         },
         {
@@ -290,7 +289,7 @@
             "type": "influxdb",
             "uid": "P951FEA4DE68E13C5"
           },
-          "query": "from(bucket: \"home\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"trade_1s\")\n  |> filter(fn: (r) => r[\"_field\"] == \"min_price\")\n  |> filter(fn: (r) => r[\"symbol\"] == \"BTCUSDT\")\n  |> aggregateWindow(every: v.windowPeriod, fn: min, createEmpty: false)\n  |> yield(name: \"Min Price\")",
+          "query": "from(bucket: \"home\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"crypto_aggregates\")\n  |> filter(fn: (r) => r[\"_field\"] == \"price_min\")\n  |> filter(fn: (r) => r[\"symbol\"] == \"BTCUSDT\")\n  |> yield(name: \"Min Price\")",
           "refId": "B"
         },
         {
@@ -298,7 +297,7 @@
             "type": "influxdb",
             "uid": "P951FEA4DE68E13C5"
           },
-          "query": "from(bucket: \"home\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"trade_1s\")\n  |> filter(fn: (r) => r[\"_field\"] == \"max_price\")\n  |> filter(fn: (r) => r[\"symbol\"] == \"BTCUSDT\")\n  |> aggregateWindow(every: v.windowPeriod, fn: max, createEmpty: false)\n  |> yield(name: \"Max Price\")",
+          "query": "from(bucket: \"home\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"crypto_aggregates\")\n  |> filter(fn: (r) => r[\"_field\"] == \"price_max\")\n  |> filter(fn: (r) => r[\"symbol\"] == \"BTCUSDT\")\n  |> yield(name: \"Max Price\")",
           "refId": "C"
         }
       ],
@@ -307,7 +306,7 @@
     }
   ],
   "preload": false,
-  "refresh": "5s",
+  "refresh": "10s",
   "schemaVersion": 41,
   "tags": [
     "crypto",
@@ -322,7 +321,7 @@
     "list": []
   },
   "time": {
-    "from": "now-1m",
+    "from": "now-1h",
     "to": "now"
   },
   "timepicker": {},

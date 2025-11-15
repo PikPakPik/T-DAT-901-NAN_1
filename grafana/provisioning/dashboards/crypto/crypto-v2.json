@@ -103,15 +103,15 @@
       "pluginVersion": "12.2.1",
       "targets": [
         {
-          "query": "from(bucket: \"home\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r.symbol == \"BTCUSDT\" and r._field == \"min_price\")",
+          "query": "from(bucket: \"home\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"crypto_aggregates\")\n  |> filter(fn: (r) => r.symbol == \"BTCUSDT\" and r._field == \"price_min\")\n  |> yield(name: \"Min Price\")",
           "refId": "A"
         },
         {
-          "query": "from(bucket: \"home\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r.symbol == \"BTCUSDT\" and r._field == \"avg_price\")",
+          "query": "from(bucket: \"home\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"crypto_aggregates\")\n  |> filter(fn: (r) => r.symbol == \"BTCUSDT\" and r._field == \"price_avg\")\n  |> yield(name: \"Avg Price\")",
           "refId": "B"
         },
         {
-          "query": "from(bucket: \"home\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r.symbol == \"BTCUSDT\" and r._field == \"max_price\")",
+          "query": "from(bucket: \"home\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"crypto_aggregates\")\n  |> filter(fn: (r) => r.symbol == \"BTCUSDT\" and r._field == \"price_max\")\n  |> yield(name: \"Max Price\")",
           "refId": "C"
         }
       ],
@@ -203,11 +203,11 @@
       "pluginVersion": "12.2.1",
       "targets": [
         {
-          "query": "from(bucket: \"home\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r.symbol == \"BTCUSDT\" and r._field == \"buyer_volume\")",
+          "query": "from(bucket: \"home\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"crypto_aggregates\")\n  |> filter(fn: (r) => r.symbol == \"BTCUSDT\" and r._field == \"volume_buy\")\n  |> yield(name: \"Buy Volume\")",
           "refId": "A"
         },
         {
-          "query": "from(bucket: \"home\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r.symbol == \"BTCUSDT\" and r._field == \"seller_volume\")",
+          "query": "from(bucket: \"home\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"crypto_aggregates\")\n  |> filter(fn: (r) => r.symbol == \"BTCUSDT\" and r._field == \"volume_sell\")\n  |> yield(name: \"Sell Volume\")",
           "refId": "B"
         }
       ],
@@ -299,7 +299,7 @@
       "pluginVersion": "12.2.1",
       "targets": [
         {
-          "query": "from(bucket: \"home\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r.symbol == \"BTCUSDT\" and r._field == \"trade_count\")",
+          "query": "from(bucket: \"home\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"crypto_aggregates\")\n  |> filter(fn: (r) => r.symbol == \"BTCUSDT\" and r._field == \"trade_count\")\n  |> yield(name: \"Trade Count\")",
           "refId": "A"
         }
       ],
@@ -364,7 +364,7 @@
               }
             ]
           },
-          "unit": "none"
+          "unit": "percent"
         },
         "overrides": []
       },
@@ -391,7 +391,7 @@
       "pluginVersion": "12.2.1",
       "targets": [
         {
-          "query": "import \"math\"\n\nprice = from(bucket: \"home\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r.symbol == \"BTCUSDT\" and r._field == \"avg_price\" and r._value > 0.0)\n  |> keep(columns: [\"_time\", \"_value\"])\n  |> sort(columns: [\"_time\"])\n\nlog_price = price\n  |> map(fn: (r) => ({ r with _value: math.log(x: r._value) }))\n\nreturns = log_price\n  |> difference()\n\nreturns\n  |> window(every: 1m)\n  |> stddev()\n  |> map(fn: (r) => ({ r with _time: r._stop }))\n  |> keep(columns: [\"_time\", \"_value\"])\n",
+          "query": "from(bucket: \"home\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"crypto_aggregates\")\n  |> filter(fn: (r) => r.symbol == \"BTCUSDT\" and r._field == \"volatility\")\n  |> yield(name: \"Volatility\")",
           "refId": "A"
         }
       ],
