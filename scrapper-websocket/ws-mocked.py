@@ -4,6 +4,8 @@ import os
 from faker import Faker
 import random
 from kafka import KafkaProducer
+from kafka.admin import KafkaAdminClient, NewTopic
+from kafka.errors import TopicAlreadyExistsError, UnknownTopicOrPartitionError
 
 fake = Faker()
 
@@ -52,20 +54,107 @@ PRICE_RANGES = {
 price_cache = {symbol: random.uniform(*PRICE_RANGES.get(symbol, (1, 100))) for symbol in CRYPTO_PAIRS}
 
 
+def ensure_topic_exists(topic_name: str, partitions: int = 3, replication_factor: int = 1) -> None:
+    """
+    Vérifie si le topic existe et le crée avec le bon nombre de partitions si nécessaire.
+    
+    Si le topic existe déjà avec moins de partitions, augmente le nombre de partitions.
+    Si le topic n'existe pas, le crée avec le nombre de partitions spécifié.
+    
+    Args:
+        topic_name: Nom du topic Kafka.
+        partitions: Nombre de partitions désiré (défaut: 3).
+        replication_factor: Facteur de réplication (défaut: 1).
+    """
+    bootstrap = os.environ.get('KAFKA_BOOTSTRAP_SERVERS') or "kafka:29092"
+    
+    try:
+        admin_client = KafkaAdminClient(bootstrap_servers=bootstrap)
+        
+        # Vérifier si le topic existe déjà
+        try:
+            metadata = admin_client.describe_topics([topic_name])
+            
+            if topic_name in metadata:
+                topic_metadata = metadata[topic_name]
+                current_partitions = len(topic_metadata.partitions) if hasattr(topic_metadata, 'partitions') else 0
+                
+                print(f"📊 Topic '{topic_name}' existe avec {current_partitions} partitions", flush=True)
+                
+                if current_partitions < partitions:
+                    print(f"🔄 Augmentation du nombre de partitions de {current_partitions} à {partitions}...", flush=True)
+                    try:
+                        # Augmenter le nombre de partitions - API attend un dict {topic_name: total_partitions}
+                        future = admin_client.create_partitions({
+                            topic_name: partitions
+                        })
+                        # Attendre la complétion
+                        future[topic_name].result(timeout=10)
+                        
+                        # Vérifier que l'augmentation a bien fonctionné
+                        metadata_after = admin_client.describe_topics([topic_name])
+                        if topic_name in metadata_after:
+                            topic_metadata_after = metadata_after[topic_name]
+                            new_partitions = len(topic_metadata_after.partitions) if hasattr(topic_metadata_after, 'partitions') else 0
+                            print(f"✅ Topic '{topic_name}' maintenant avec {new_partitions} partitions (vérifié)", flush=True)
+                        else:
+                            print(f"⚠️  Impossible de vérifier le nombre de partitions après augmentation", flush=True)
+                    except Exception as e:
+                        print(f"❌ Erreur lors de l'augmentation des partitions: {e}", flush=True)
+                        import traceback
+                        traceback.print_exc()
+                        raise
+                elif current_partitions == partitions:
+                    print(f"✅ Topic '{topic_name}' a déjà {partitions} partitions", flush=True)
+                else:
+                    print(f"ℹ️  Topic '{topic_name}' a déjà {current_partitions} partitions (≥ {partitions})", flush=True)
+            else:
+                # Topic n'existe pas dans les métadonnées, le créer
+                print(f"🆕 Création du topic '{topic_name}' avec {partitions} partitions...", flush=True)
+                topic = NewTopic(name=topic_name, num_partitions=partitions, replication_factor=replication_factor)
+                future = admin_client.create_topics([topic])
+                future[topic_name].result()
+                print(f"✅ Topic '{topic_name}' créé avec {partitions} partitions", flush=True)
+                
+        except UnknownTopicOrPartitionError:
+            # Le topic n'existe pas, le créer
+            print(f"🆕 Création du topic '{topic_name}' avec {partitions} partitions...", flush=True)
+            topic = NewTopic(name=topic_name, num_partitions=partitions, replication_factor=replication_factor)
+            try:
+                future = admin_client.create_topics([topic])
+                future[topic_name].result()
+                print(f"✅ Topic '{topic_name}' créé avec {partitions} partitions", flush=True)
+            except TopicAlreadyExistsError:
+                print(f"ℹ️  Topic '{topic_name}' a été créé entre temps", flush=True)
+            
+    except TopicAlreadyExistsError:
+        print(f"ℹ️  Topic '{topic_name}' existe déjà", flush=True)
+    except Exception as e:
+        print(f"⚠️  Erreur lors de la gestion du topic '{topic_name}': {e}", flush=True)
+        # Continue quand même, le topic pourrait déjà exister
+
+
 def create_kafka_producer() -> KafkaProducer:
     """Crée un producteur Kafka avec gestion de la reconnexion."""
     bootstrap = os.environ.get('KAFKA_BOOTSTRAP_SERVERS') or "kafka:29092"
+    topic_name = os.environ.get('TOPIC_TRADE', 'trade')
+    partitions = int(os.environ.get('KAFKA_PARTITIONS', '3'))
+    
     attempt = 1
     while True:
         try:
             print(f"🔌 Connecting to Kafka at {bootstrap} (attempt {attempt})", flush=True)
+            
+            # S'assurer que le topic existe avec le bon nombre de partitions
+            ensure_topic_exists(topic_name, partitions=partitions)
+            
             producer = KafkaProducer(
                 bootstrap_servers=bootstrap,
                 value_serializer=lambda v: json.dumps(v).encode('utf-8'),
                 compression_type='gzip'
             )
             # Validate connection by fetching metadata
-            producer.partitions_for('trade')
+            producer.partitions_for(topic_name)
             print("✅ Kafka connection established", flush=True)
             return producer
         except Exception as e:

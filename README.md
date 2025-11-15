@@ -2,6 +2,7 @@
 
 > 📚 **Documentation détaillée** : Consultez les fichiers dans `docs/` pour des explications approfondies :
 > - [`docs/KAFKA.md`](docs/KAFKA.md) : Pourquoi Kafka, group_id, paramètres Kafka, fonctionnement
+> - [`docs/KAFKA_PARTITIONS.md`](docs/KAFKA_PARTITIONS.md) : Comment configurer les partitions pour le scaling
 > - [`docs/STREAM_PROCESSOR.md`](docs/STREAM_PROCESSOR.md) : Comment fonctionne l'agrégation, boucle principale
 > - [`docs/DUCKDB.md`](docs/DUCKDB.md) : Pourquoi DuckDB, comment il agrège les données
 > - [`docs/CODE.md`](docs/CODE.md) : Documentation détaillée de toutes les fonctions et du code
@@ -241,21 +242,61 @@ docker compose up scrapper-ws-mock
 
 ## 📈 Scaling et Performance
 
-### Scaling horizontal du stream-processor
+### Configuration des partitions Kafka
 
+**⚠️ Important :** Pour le scaling horizontal, le topic `trade` doit avoir **au moins autant de partitions que de consumers**.
+
+**Tentative automatique :** Les scrapper tentent de créer/augmenter le topic `trade` avec **3 partitions** au démarrage, mais cela peut échouer silencieusement pour les topics existants.
+
+**Vérifier le nombre de partitions actuelles :**
 ```bash
-# Démarrer 5 instances
-docker compose up --scale stream-processor=5
+docker exec kafka kafka-topics --bootstrap-server kafka:29092 --describe --topic trade | grep PartitionCount
 ```
 
-**Avantages** :
+**Augmenter manuellement à 3 partitions (recommandé si auto échoue) :**
+```bash
+docker exec kafka kafka-topics --bootstrap-server kafka:29092 --alter --topic trade --partitions 3
+```
+
+**Vérifier le résultat :**
+```bash
+docker exec kafka kafka-topics --bootstrap-server kafka:29092 --describe --topic trade
+```
+
+Vous devriez voir 3 partitions : Partition 0, Partition 1, Partition 2
+
+**Configuration via variables d'environnement (pour création de nouveaux topics) :**
+- `TOPIC_TRADE` : Nom du topic (défaut: `trade`)
+- `KAFKA_PARTITIONS` : Nombre de partitions (défaut: `3`)
+
+> 📚 **Documentation complète :** Voir [`docs/KAFKA_PARTITIONS.md`](docs/KAFKA_PARTITIONS.md) pour tous les détails.
+
+### Scaling horizontal du stream-processor
+
+**Avant de scaler, vérifiez que vous avez au moins 3 partitions !**
+
+```bash
+# Démarrer 3 instances (nécessite 3 partitions minimum)
+docker compose up --scale stream-processor=3
+```
+
+**Avantages :**
 - Traitement parallèle des partitions Kafka
 - Réduction du consumer lag
 - Augmentation du throughput
 
-**Requirements** :
+**Requirements :**
 - Le topic Kafka doit avoir suffisamment de partitions (≥ nombre d'instances)
 - Toutes les instances doivent partager le même `KAFKA_GROUP_ID`
+
+**Exemple avec 3 partitions et 3 processors :**
+```
+Partition 0 → Processor 1
+Partition 1 → Processor 2
+Partition 2 → Processor 3
+```
+
+Chaque processor traite sa partition en parallèle, multipliant le throughput par 3.
 
 ### Optimisation du consumer lag
 
