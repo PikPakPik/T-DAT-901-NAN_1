@@ -1,80 +1,30 @@
 # Kafka dans ce projet
 
-## 📋 Pourquoi Kafka et pas un autre outil ?
+## 🔧 Architecture Kafka
 
-### Problème à résoudre
+**Kafka** est le broker de messages qui stocke et distribue les messages.
 
-Nous avons besoin de traiter un flux de données cryptographiques en temps réel :
-- **Haute volumétrie** : Des milliers de trades par seconde
-- **Traitement asynchrone** : Séparer la collecte (Binance) du traitement (agrégation)
-- **Scalabilité** : Pouvoir augmenter le nombre de processeurs si la charge augmente
-- **Durabilité** : Ne pas perdre de données si un processeur crash
-- **Découplage** : Le scrapper et le processor ne doivent pas être directement couplés
+**Notre projet utilise KRaft** (Kafka Raft). Voir [KRAFT.md](./KRAFT.md) pour les détails.
 
-### Comparaison avec d'autres solutions
+**Configuration dans notre projet :**
+```yaml
+kafka:
+  environment:
+    KAFKA_PROCESS_ROLES: broker,controller
+    KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+    KAFKA_LISTENERS: PLAINTEXT://kafka:29092,CONTROLLER://kafka:29093,PLAINTEXT_HOST://0.0.0.0:9092
+```
 
-#### ❌ Message Queue simple (RabbitMQ, Redis Pub/Sub)
+## 📋 Pourquoi Kafka ?
 
-**Problèmes :**
-- Pas de persistance par défaut (messages perdus si consumer down)
-- Pas de replay des messages
-- Difficile de scaler horizontalement (répartition manuelle)
-- Pas de notion de partitions (traitement parallèle limité)
+**Besoin :** Traiter des milliers de trades/seconde avec découplage, durabilité et scaling horizontal.
 
-**Quand c'est OK :** Petits volumes, pas besoin de persistance, traitement séquentiel
-
-#### ❌ Base de données (PostgreSQL, MySQL)
-
-**Problèmes :**
-- Trop lent pour des insertions massives (milliers/seconde)
-- Pas optimisé pour le streaming (pull au lieu de push)
-- Blocages lors des agrégations (locks)
-- Cohabitation difficile avec les requêtes analytiques
-
-**Quand c'est OK :** Stockage final, requêtes complexes, transactions ACID
-
-#### ❌ Stockage direct (InfluxDB, TimescaleDB)
-
-**Problèmes :**
-- Pas de buffering (couplage fort entre collecte et stockage)
-- Pas de re-traitement possible si erreur d'agrégation
-- Pas de scaling horizontal du traitement
-- Risque de saturation si le traitement est plus lent que la collecte
-
-**Quand c'est OK :** Flux simple, pas de transformation nécessaire
-
-#### ✅ Apache Kafka
-
-**Avantages dans notre cas :**
-
-1. **Durabilité** : Les messages sont persistés sur disque
-   - Si le processor crash, les messages sont toujours là
-   - Possibilité de rejouer les messages si besoin
-
-2. **Scalabilité horizontale** :
-   - Topic avec plusieurs partitions
-   - Plusieurs consumers peuvent traiter en parallèle
-   - Kafka répartit automatiquement les partitions
-
-3. **Découplage temporel** :
-   - Le scrapper produit même si le processor est lent
-   - Le processor consomme à son rythme
-   - Buffering automatique entre producteur et consommateur
-
-4. **Performance** :
-   - Très haut débit (millions de messages/seconde possible)
-   - Écritures séquentielles sur disque (très rapides)
-   - Compression des messages (gzip dans notre cas)
-
-5. **Groupes de consumers** :
-   - Plusieurs processors peuvent travailler ensemble
-   - Répartition automatique de la charge
-   - Gestion automatique des crashes (rebalance)
-
-6. **Offset management** :
-   - Suivi automatique de la position de lecture
-   - Possibilité de revenir en arrière si besoin
-   - Gestion des commits automatiques ou manuels
+**Kafka apporte :**
+- ✅ **Durabilité** : Messages persistés (pas de perte si processor crash)
+- ✅ **Scaling horizontal** : Partitions → plusieurs consumers en parallèle
+- ✅ **Découplage** : Scrapper et processor indépendants (buffering automatique)
+- ✅ **Performance** : Haut débit, compression gzip
+- ✅ **Consumer groups** : Répartition automatique de la charge
 
 ## 🔧 Comment fonctionne Kafka ?
 
@@ -131,7 +81,7 @@ Topic "trade" → Consumer → Stream Processor
 Un **consumer group** est un ensemble de consumers qui travaillent ensemble.
 
 ```
-Consumer Group: "duckdb-stream-processor"
+Consumer Group: "tdat901nan1"
 ├── Consumer 1 → Partition 0
 ├── Consumer 2 → Partition 1
 └── Consumer 3 → Partition 2
@@ -213,7 +163,7 @@ Partition 0: [msg0, msg1, msg2, msg3, msg4, ...]
 
 **Rôle :** Identifie le groupe de consumers qui partagent le travail.
 
-**Valeur dans le projet :** `duckdb-stream-processor`
+**Valeur dans le projet :** `tdat901nan1`
 
 **Pourquoi c'est important :**
 - Tous les stream-processors avec le même `group_id` se répartissent les partitions
@@ -224,9 +174,9 @@ Partition 0: [msg0, msg1, msg2, msg3, msg4, ...]
 **Exemple concret :**
 ```
 Topic "trade" avec 3 partitions :
-- Partition 0 → Consumer A (group: duckdb-stream-processor)
-- Partition 1 → Consumer B (group: duckdb-stream-processor)  
-- Partition 2 → Consumer C (group: duckdb-stream-processor)
+- Partition 0 → Consumer A (group: tdat901nan1)
+- Partition 1 → Consumer B (group: tdat901nan1)  
+- Partition 2 → Consumer C (group: tdat901nan1)
 
 Si Consumer B crash :
 - Partition 1 → Réassignée à Consumer A ou C
@@ -378,4 +328,22 @@ Accessible sur http://localhost:9090
 - **Exactement une fois** : Possible mais plus complexe (nécessite idempotence)
 
 **Dans notre projet :** "Au moins une fois" accepté car les duplications sont minimes et l'agrégation est idempotente sur des fenêtres.
+
+## 📊 Partitions
+
+**Règle :** Nombre de partitions ≥ nombre de consumers pour scaling horizontal.
+
+**Dans notre projet :** Topic `trade` avec 3 partitions (créé automatiquement par les scrapper).
+
+**Vérifier :**
+```bash
+docker exec kafka kafka-topics --bootstrap-server kafka:29092 --describe --topic trade
+```
+
+**Augmenter (si nécessaire) :**
+```bash
+docker exec kafka kafka-topics --bootstrap-server kafka:29092 --alter --topic trade --partitions 3
+```
+
+**⚠️ Important :** On peut augmenter les partitions, mais pas les réduire (nécessite suppression du topic).
 

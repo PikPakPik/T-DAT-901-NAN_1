@@ -74,7 +74,7 @@ Variables d'environnement :
 - `WINDOW_SECONDS` : Durée de la fenêtre d'agrégation en secondes (défaut: 5)
 - `KAFKA_BATCH_SIZE` : Nombre de messages à accumuler avant agrégation (défaut: 1000)
 - `KAFKA_POLL_TIMEOUT_MS` : Timeout pour la lecture Kafka en millisecondes (défaut: 1000)
-- `KAFKA_GROUP_ID` : ID du groupe de consumers Kafka (défaut: duckdb-stream-processor)
+- `KAFKA_GROUP_ID` : ID du groupe de consumers Kafka (défaut: tdat901nan1)
 - `INSTANCE_ID` : Identifiant unique de l'instance (auto-généré depuis HOSTNAME)
 
 ## Format des données Kafka

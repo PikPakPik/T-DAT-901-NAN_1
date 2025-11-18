@@ -2,7 +2,7 @@
 
 > 📚 **Documentation détaillée** : Consultez les fichiers dans `docs/` pour des explications approfondies :
 > - [`docs/KAFKA.md`](docs/KAFKA.md) : Pourquoi Kafka, group_id, paramètres Kafka, fonctionnement
-> - [`docs/KAFKA_PARTITIONS.md`](docs/KAFKA_PARTITIONS.md) : Comment configurer les partitions pour le scaling
+> - [`docs/KRAFT.md`](docs/KRAFT.md) : Configuration KRaft
 > - [`docs/STREAM_PROCESSOR.md`](docs/STREAM_PROCESSOR.md) : Comment fonctionne l'agrégation, boucle principale
 > - [`docs/DUCKDB.md`](docs/DUCKDB.md) : Pourquoi DuckDB, comment il agrège les données
 > - [`docs/CODE.md`](docs/CODE.md) : Documentation détaillée de toutes les fonctions et du code
@@ -72,9 +72,13 @@ Ce projet est un système de traitement de données cryptographiques en temps r�
 - `BINANCE_AGGREGATE_TRADE_STEAMS` : Liste des streams à écouter
 - `KAFKA_BOOTSTRAP_SERVERS` : Serveurs Kafka
 
-### 2. **Kafka** (Message Broker)
+### 2. **Kafka** (`kafka`, `kafka-ui`)
 
 **Rôle** : Intermédiaire entre la collecte et le traitement des données.
+
+**Composants** :
+- **`kafka`** : Le broker de messages qui stocke et distribue les messages entre topics et partitions (utilise KRaft).
+- **`kafka-ui`** : Interface web pour monitorer et gérer les topics, consumers et producers.
 
 **Caractéristiques** :
 - Topic : `trade`
@@ -87,6 +91,10 @@ Ce projet est un système de traitement de données cryptographiques en temps r�
 - Buffering des messages
 - Scalabilité horizontale (plusieurs partitions)
 - Durabilité des données
+
+**Configuration** :
+- Kafka utilise **KRaft** (Kafka Raft)
+- Voir [`docs/KRAFT.md`](docs/KRAFT.md) pour les détails de configuration
 
 ### 3. **Stream Processor** (`stream-processor/`)
 
@@ -312,7 +320,7 @@ Le système est optimisé pour minimiser le lag :
 ### Kafka Consumer Lag
 
 Surveiller via Kafka UI :
-- Consumer Groups → `duckdb-stream-processor`
+- Consumer Groups → `tdat901nan1`
 - Lag par partition
 
 ### Métriques Grafana

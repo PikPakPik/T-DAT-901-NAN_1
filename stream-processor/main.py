@@ -25,7 +25,7 @@ KAFKA_BATCH_SIZE = int(os.getenv('KAFKA_BATCH_SIZE', '100'))
 KAFKA_POLL_TIMEOUT_MS = int(os.getenv('KAFKA_POLL_TIMEOUT_MS', '100'))
 KAFKA_MAX_POLL_RECORDS = int(os.getenv('KAFKA_MAX_POLL_RECORDS', '1000'))
 AGGR_INTERVAL_SECONDS = float(os.getenv('AGGR_INTERVAL_SECONDS', '1.0'))
-KAFKA_GROUP_ID = os.getenv('KAFKA_GROUP_ID', 'duckdb-stream-processor')
+KAFKA_GROUP_ID = os.getenv('KAFKA_GROUP_ID', 'tdat901nan1')
 INSTANCE_ID = os.getenv('HOSTNAME', os.getenv('INSTANCE_ID', 'stream-processor-1'))
 
 

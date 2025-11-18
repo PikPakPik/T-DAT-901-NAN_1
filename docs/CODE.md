@@ -6,155 +6,20 @@
 
 Service principal qui consomme Kafka, agrège avec DuckDB et écrit dans InfluxDB.
 
-#### Configuration
+**Voir [STREAM_PROCESSOR.md](./STREAM_PROCESSOR.md) pour le fonctionnement détaillé.**
 
-```python
-KAFKA_BOOTSTRAP_SERVERS = os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'kafka:29092')
-TOPIC_TRADE = os.getenv('TOPIC_TRADE', 'trade')
-INFLUX_URL = os.getenv('INFLUX_URL', 'http://influxdb:8086')
-INFLUX_TOKEN = os.getenv('INFLUX_TOKEN')
-INFLUX_ORG = os.getenv('INFLUX_ORG', 'cryptoviz')
-INFLUX_BUCKET = os.getenv('INFLUX_BUCKET', 'home')
-WINDOW_SECONDS = int(os.getenv('WINDOW_SECONDS', '5'))
-KAFKA_BATCH_SIZE = int(os.getenv('KAFKA_BATCH_SIZE', '100'))
-KAFKA_POLL_TIMEOUT_MS = int(os.getenv('KAFKA_POLL_TIMEOUT_MS', '100'))
-KAFKA_MAX_POLL_RECORDS = int(os.getenv('KAFKA_MAX_POLL_RECORDS', '1000'))
-AGGR_INTERVAL_SECONDS = float(os.getenv('AGGR_INTERVAL_SECONDS', '1.0'))
-KAFKA_GROUP_ID = os.getenv('KAFKA_GROUP_ID', 'duckdb-stream-processor')
-INSTANCE_ID = os.getenv('HOSTNAME', os.getenv('INSTANCE_ID', 'stream-processor-1'))
-```
+**Fonctions principales :**
+- `create_kafka_consumer()` : Consumer Kafka configuré
+- `create_influx_client()` : Client InfluxDB
+- `create_duckdb_connection()` : Connexion DuckDB en mémoire
+- `process_trades()` : Agrège les trades par fenêtre temporelle
+- `write_to_influxdb()` : Écrit les résultats dans InfluxDB
+- `main()` : Boucle principale (poll → buffer → agrégation → écriture)
 
-**Variables d'environnement :**
-- `KAFKA_BOOTSTRAP_SERVERS` : Serveurs Kafka (format: host:port)
-- `TOPIC_TRADE` : Topic Kafka à consommer
-- `INFLUX_URL` : URL InfluxDB (http://host:port)
-- `INFLUX_TOKEN` : Token d'authentification InfluxDB (requis)
-- `INFLUX_ORG` : Organisation InfluxDB
-- `INFLUX_BUCKET` : Bucket InfluxDB où écrire
-- `WINDOW_SECONDS` : Durée des fenêtres d'agrégation (secondes)
-- `KAFKA_BATCH_SIZE` : Taille max du buffer avant agrégation
-- `KAFKA_POLL_TIMEOUT_MS` : Timeout pour poll Kafka (ms)
-- `KAFKA_MAX_POLL_RECORDS` : Max messages par poll
-- `AGGR_INTERVAL_SECONDS` : Intervalle max entre agrégations
-- `KAFKA_GROUP_ID` : ID du consumer group Kafka
-- `INSTANCE_ID` : Identifiant unique de l'instance (pour logs)
-
-#### `create_kafka_consumer() -> KafkaConsumer`
-
-Crée et configure le consumer Kafka.
-
-**Configuration :**
-- `auto_offset_reset='latest'` : Commence à lire les nouveaux messages
-- `enable_auto_commit=True` : Commit automatique des offsets
-- `auto_commit_interval_ms=1000` : Commit toutes les secondes
-- `group_id=KAFKA_GROUP_ID` : Groupe pour partager le travail
-- `consumer_timeout_ms=KAFKA_POLL_TIMEOUT_MS` : Timeout pour poll
-- `max_poll_records=KAFKA_MAX_POLL_RECORDS` : Max 1000 messages/poll
-- `max_poll_interval_ms=300000` : 5 minutes max entre polls
-
-**Returns:** Consumer Kafka configuré
-
-**Voir :** `docs/KAFKA.md` pour les détails sur le group_id et les paramètres
-
-#### `create_influx_client() -> InfluxDBClient`
-
-Crée le client InfluxDB.
-
-**Vérifie :** Que `INFLUX_TOKEN` est défini (sinon raise ValueError)
-
-**Returns:** Client InfluxDB configuré
-
-**Raises:** ValueError si token manquant
-
-#### `create_duckdb_connection() -> duckdb.DuckDBPyConnection`
-
-Crée une connexion DuckDB en mémoire avec le schéma de la table trades.
-
-**Schéma :**
-- `event_time BIGINT` : Timestamp de l'événement
-- `symbol VARCHAR` : Symbole crypto (BTCUSDT, etc.)
-- `trade_id BIGINT` : ID unique du trade
-- `price DOUBLE` : Prix
-- `quantity DOUBLE` : Quantité
-- `trade_time BIGINT` : Timestamp du trade (ms)
-- `is_buyer_maker BOOLEAN` : Buyer est market maker ?
-- `volume DOUBLE` : volume = price * quantity
-- `volume_buy DOUBLE` : volume si buy
-- `volume_sell DOUBLE` : volume si sell
-
-**Returns:** Connexion DuckDB avec table créée
-
-**Voir :** `docs/DUCKDB.md` pour plus de détails
-
-#### `process_trades(conn: duckdb.DuckDBPyConnection, trades_data: list) -> list`
-
-Charge les trades dans DuckDB et calcule les agrégations par fenêtre.
-
-**Process :**
-1. Insère tous les trades avec `executemany()`
-2. Exécute la requête SQL d'agrégation
-3. Vide la table avec `DELETE FROM trades`
-4. Retourne les résultats
-
-**Fenêtres :** Calculées avec `FLOOR(trade_time / (WINDOW_SECONDS * 1000)) * (WINDOW_SECONDS * 1000)`
-
-**Agrégations :**
-- `MAX(price)`, `MIN(price)`, `AVG(price)`
-- `SUM(volume_buy)`, `SUM(volume_sell)`, `SUM(volume)`
-- `STDDEV(price)` pour volatilité
-- `COUNT(*)` pour nombre de trades
-
-**Returns:** Liste de tuples `(window_start, symbol, price_max, price_min, price_avg, volume_buy, volume_sell, volume_total, price_stddev, trade_count)`
-
-**Voir :** `docs/STREAM_PROCESSOR.md` pour le détail de l'agrégation
-
-#### `write_to_influxdb(aggregated_data: list, write_api) -> None`
-
-Convertit les données agrégées en Points InfluxDB et les écrit.
-
-**Process :**
-1. Calcule la volatilité : `(price_stddev / price_avg) * 100`
-2. Convertit `window_start` (timestamp ms) en `datetime`
-3. Crée un Point InfluxDB pour chaque ligne
-4. Écrit tous les points en batch (asynchrone)
-
-**Structure Point :**
-- Measurement: `crypto_aggregates`
-- Tag: `symbol` (BTCUSDT, ETHUSDT, ...)
-- Fields: `price_max`, `price_min`, `price_avg`, `volume_buy`, `volume_sell`, `volume_total`, `volatility`, `trade_count`
-- Time: `window_dt` (début de la fenêtre)
-
-**Écriture asynchrone :** Ne bloque pas le traitement Kafka
-
-#### `main() -> None`
-
-Point d'entrée principal du stream processor.
-
-**Flow :**
-1. Affiche la configuration
-2. Initialise les connexions (Kafka, InfluxDB, DuckDB)
-3. Boucle infinie :
-   - Poll Kafka (100ms timeout)
-   - Parse et valide les messages
-   - Accumule dans `trades_buffer`
-   - Vérifie si agrégation nécessaire (buffer plein OU 1s écoulé OU pas de nouveaux messages)
-   - Si oui : charge dans DuckDB, agrège, écrit dans InfluxDB, vide le buffer
-   - Pause 1ms si vraiment rien à faire
-4. Gestion des erreurs et nettoyage à l'arrêt
-
-**Critères d'agrégation :**
-```python
-should_aggregate = (
-    len(trades_buffer) >= KAFKA_BATCH_SIZE or
-    (current_time - last_aggregation_time) >= AGGR_INTERVAL_SECONDS or
-    (len(trades_buffer) > 0 and len(message_batch) == 0)
-)
-```
-
-**Gestion d'erreurs :**
-- Messages invalides : ignorés, log warning
-- Erreurs d'agrégation : log error, traceback, vide le buffer
-- Erreurs dans la boucle : log error, attend 1s avant de réessayer
+**Variables d'environnement principales :**
+- `KAFKA_BOOTSTRAP_SERVERS`, `TOPIC_TRADE`, `KAFKA_GROUP_ID`
+- `INFLUX_URL`, `INFLUX_TOKEN`, `INFLUX_ORG`, `INFLUX_BUCKET`
+- `WINDOW_SECONDS`, `KAFKA_BATCH_SIZE`, `AGGR_INTERVAL_SECONDS`
 
 ### `scrapper-websocket/main.py`
 
@@ -309,98 +174,7 @@ Point d'entrée : génère des trades mockés et les envoie dans Kafka.
 - Taux réel (événements/seconde)
 - Affichage toutes les 10 secondes
 
-## 🔄 Flux de données complet
-
-### Production (main.py)
-
-```
-Binance WebSocket
-    ↓ (JSON messages)
-listen_stream()
-    ↓ (parsed JSON)
-agg_trade_handler()
-    ↓ (filtered dict)
-Kafka Producer
-    ↓ (gzip compressed)
-Topic "trade" (Kafka)
-```
-
-### Mock (ws-mocked.py)
-
-```
-generate_aggtrade_data()
-    ↓ (random trade dict)
-Kafka Producer
-    ↓ (gzip compressed)
-Topic "trade" (Kafka)
-```
-
-### Consommation et agrégation
-
-```
-Topic "trade" (Kafka)
-    ↓ (poll every 100ms)
-Kafka Consumer
-    ↓ (parse & validate)
-trades_buffer
-    ↓ (every 1s or 100 trades)
-DuckDB INSERT
-    ↓ (SQL aggregation)
-DuckDB SELECT (GROUP BY)
-    ↓ (aggregated results)
-write_to_influxdb()
-    ↓ (Point conversion)
-InfluxDB (async write)
-    ↓ (time-series data)
-Grafana Dashboards
-```
-
-## 🎯 Points clés du code
-
-### Gestion des erreurs
-
-**Messages invalides :**
-- Validation des champs obligatoires
-- Conversion price/quantity en float (catch ValueError)
-- Ignorés silencieusement (log si nécessaire)
-
-**Erreurs d'agrégation :**
-- Try/except autour de `process_trades()` et `write_to_influxdb()`
-- Traceback affiché pour debugging
-- Buffer vidé pour éviter les duplications
-
-**Erreurs critiques :**
-- Connexions : Retry automatique (Kafka producer)
-- Fatal errors : Traceback complet + exit code 1
-
-### Performance
-
-**Optimisations :**
-- Poll court (100ms) pour réactivité
-- Batch processing dans DuckDB (executemany)
-- Écriture asynchrone InfluxDB (non-bloquant)
-- Pause minimale (1ms) seulement si inactif
-
-**Bottlenecks potentiels :**
-- Kafka poll timeout (optimisé à 100ms)
-- DuckDB agrégation (optimisé avec SQL)
-- InfluxDB write (asynchrone donc non-bloquant)
-
-### Scaling
-
-**Horizontal scaling :**
-- Tous les processors utilisent le même `KAFKA_GROUP_ID`
-- Kafka répartit automatiquement les partitions
-- Chaque instance traite une partie des données
-
-**Comment scaler :**
-```bash
-docker compose up --scale stream-processor=3
-```
-
-**Requirements :**
-- Topic Kafka avec au moins N partitions (N = nombre d'instances)
-- Même `KAFKA_GROUP_ID` pour toutes les instances
+**Voir [STREAM_PROCESSOR.md](./STREAM_PROCESSOR.md) pour le flux de données complet et les détails de fonctionnement.**
 
 ## 📝 Format des données
 

@@ -97,106 +97,13 @@ trades_buffer = [
 
 ## 🗄️ DuckDB - Agrégation
 
-### Pourquoi DuckDB ?
+DuckDB est utilisé pour agréger les trades par fenêtre temporelle et symbole. Voir [DUCKDB.md](./DUCKDB.md) pour les détails complets.
 
-**Problème :** On doit agréger des milliers de trades par seconde.
-
-**Solutions possibles :**
-
-#### ❌ Pandas / NumPy
-- Trop lent pour de gros volumes
-- Consomme beaucoup de mémoire
-- Pas optimisé pour les agrégations SQL
-
-#### ❌ SQLite
-- Conçu pour transactions ACID, pas pour analytics
-- Lent pour les agrégations sur gros volumes
-- Pas optimisé pour les requêtes analytiques
-
-#### ❌ PostgreSQL / MySQL
-- Trop lourd (nécessite serveur séparé)
-- Lent pour les agrégations en mémoire
-- Overhead réseau inutile
-
-#### ✅ DuckDB
-- **Optimisé pour analytics** : Conçu pour les requêtes analytiques rapides
-- **En mémoire** : Pas besoin de serveur, tout en RAM (ultra-rapide)
-- **SQL natif** : Requêtes SQL standards, facile à maintenir
-- **Léger** : Bibliothèque Python simple, pas de Java/Cluster
-- **Performance** : Agrège des milliers de lignes en millisecondes
-
-### Schéma de la table
-
-```sql
-CREATE TABLE trades (
-    event_time BIGINT,        -- Timestamp de l'événement
-    symbol VARCHAR,            -- Symbole (BTCUSDT, ETHUSDT, ...)
-    trade_id BIGINT,           -- ID unique du trade
-    price DOUBLE,              -- Prix du trade
-    quantity DOUBLE,           -- Quantité du trade
-    trade_time BIGINT,         -- Timestamp du trade (en ms)
-    is_buyer_maker BOOLEAN,    -- Buyer est market maker ?
-    volume DOUBLE,             -- volume = price * quantity
-    volume_buy DOUBLE,         -- volume si buy (is_buyer_maker = false)
-    volume_sell DOUBLE         -- volume si sell (is_buyer_maker = true)
-)
-```
-
-### Requête d'agrégation
-
-```sql
-SELECT 
-    CAST(FLOOR(trade_time / (WINDOW_SECONDS * 1000)) * (WINDOW_SECONDS * 1000) AS BIGINT) AS window_start,
-    symbol,
-    MAX(price) AS price_max,
-    MIN(price) AS price_min,
-    AVG(price) AS price_avg,
-    SUM(volume_buy) AS volume_buy,
-    SUM(volume_sell) AS volume_sell,
-    SUM(volume) AS volume_total,
-    STDDEV(price) AS price_stddev,
-    COUNT(*) AS trade_count
-FROM trades
-GROUP BY window_start, symbol
-ORDER BY window_start, symbol
-```
-
-**Explication ligne par ligne :**
-
-1. **window_start** : 
-   ```sql
-   FLOOR(trade_time / (60 * 1000)) * (60 * 1000)
-   ```
-   - Divise le timestamp (ms) par la taille de fenêtre (60s = 60000ms)
-   - Arrondit à l'inférieur avec `FLOOR`
-   - Multiplie par la taille de fenêtre pour obtenir le début de la fenêtre
-   - Exemple : Trade à 123456789 → Fenêtre [123456000, 123456599]
-
-2. **price_max / price_min** : Prix maximum et minimum dans la fenêtre
-
-3. **price_avg** : Prix moyen (arithmétique simple)
-
-4. **volume_buy / volume_sell** : Somme des volumes selon le type de trade
-
-5. **volume_total** : Somme de tous les volumes
-
-6. **price_stddev** : Écart-type des prix (pour calculer la volatilité)
-
-7. **trade_count** : Nombre de trades dans la fenêtre
-
-**Résultat :** Une ligne par fenêtre temporelle et par symbole.
-
-### Cycle de vie
-
-1. **Insertion** : `executemany()` insère tous les trades du buffer
-2. **Agrégation** : Requête SQL calcule les métriques par fenêtre
-3. **Vidage** : `DELETE FROM trades` pour préparer le prochain batch
-4. **Répétition** : Le cycle recommence avec le nouveau batch
-
-**Pourquoi vider la table ?**
-- DuckDB est en mémoire, on peut réutiliser la même table
-- Plus efficace que créer/détruire la table à chaque fois
-- Garde le schéma entre les batches
+**En bref :**
+- Base de données analytique en mémoire (ultra-rapide)
+- Agrège les trades avec SQL : `GROUP BY window_start, symbol`
+- Calcule : min/max/moyenne prix, volumes buy/sell, écart-type, count
+- Cycle : Insert → Aggregate → Delete → Repeat
 
 ## 📈 Calcul de la volatilité
 
@@ -292,131 +199,12 @@ while True:
         trades_buffer.clear()
 ```
 
-## ⚙️ Paramètres de configuration
+## ⚙️ Paramètres principaux
 
-### `WINDOW_SECONDS`
+- `WINDOW_SECONDS=60` : Durée fenêtre d'agrégation
+- `KAFKA_BATCH_SIZE=100` : Taille max buffer avant agrégation
+- `AGGR_INTERVAL_SECONDS=1.0` : Intervalle max entre agrégations
+- `KAFKA_POLL_TIMEOUT_MS=100` : Timeout poll Kafka
 
-**Valeur :** 60 secondes (par défaut)
-
-**Rôle :** Durée de la fenêtre d'agrégation.
-
-**Impact :**
-- Plus petit = plus de granularité mais plus de points dans InfluxDB
-- Plus grand = moins de points mais moins de granularité
-
-**Dans le projet :** 60s pour équilibrer granularité et volume de données.
-
-### `KAFKA_BATCH_SIZE`
-
-**Valeur :** 100 messages
-
-**Rôle :** Taille maximale du buffer avant agrégation forcée.
-
-**Impact :**
-- Plus petit = agrégation plus fréquente mais plus d'overhead
-- Plus grand = moins d'agrégations mais plus de latence
-
-**Choix :** 100 pour traiter rapidement sans trop d'overhead.
-
-### `AGGR_INTERVAL_SECONDS`
-
-**Valeur :** 1.0 seconde
-
-**Rôle :** Temps maximum entre deux agrégations.
-
-**Impact :**
-- Garantit une latence maximale acceptable
-- Même avec peu de messages, on agrège régulièrement
-
-**Choix :** 1 seconde pour latence acceptable tout en gardant de la granularité.
-
-### `KAFKA_POLL_TIMEOUT_MS`
-
-**Valeur :** 100 ms
-
-**Rôle :** Timeout pour le poll Kafka.
-
-**Impact :**
-- Permet de traiter le buffer même sans nouveaux messages
-- Permet l'agrégation périodique
-
-**Choix :** 100ms pour réactivité et agrégation périodique.
-
-## 🚀 Optimisations
-
-### Pour minimiser le lag
-
-1. **Poll fréquent** : 100ms pour ne pas accumuler
-2. **Batch petit** : 100 messages pour traiter rapidement
-3. **Agrégation fréquente** : 1 seconde max pour latence acceptable
-4. **Écriture asynchrone** : Ne bloque pas la consommation
-5. **Pause minimale** : 1ms seulement si vraiment rien à faire
-
-### Pour la performance
-
-1. **DuckDB en mémoire** : Ultra-rapide pour les agrégations
-2. **SQL optimisé** : DuckDB optimise automatiquement les requêtes
-3. **Batch processing** : Traite plusieurs trades en une seule requête
-4. **Compression Kafka** : gzip réduit la bande passante
-
-## 📊 Exemple concret
-
-**Input Kafka (5 trades) :**
-```
-Trade 1: BTCUSDT @ 50000, qty 0.1, time 1000
-Trade 2: BTCUSDT @ 50100, qty 0.2, time 1050
-Trade 3: ETHUSDT @ 3000, qty 1.0, time 1100
-Trade 4: BTCUSDT @ 49900, qty 0.15, time 1200
-Trade 5: BTCUSDT @ 50200, qty 0.1, time 1500
-```
-
-**Buffer accumulé :**
-```python
-trades_buffer = [
-    (1000, 'BTCUSDT', 1, 50000, 0.1, 1000, False, 5000, 5000, 0),
-    (1050, 'BTCUSDT', 2, 50100, 0.2, 1050, True, 10020, 0, 10020),
-    (1100, 'ETHUSDT', 3, 3000, 1.0, 1100, False, 3000, 3000, 0),
-    (1200, 'BTCUSDT', 4, 49900, 0.15, 1200, False, 7485, 7485, 0),
-    (1500, 'BTCUSDT', 5, 50200, 0.1, 1500, True, 5020, 0, 5020)
-]
-```
-
-**Fenêtres (WINDOW_SECONDS=60, trade_time en ms) :**
-- Fenêtre 0-59s : Trades 1, 2, 3, 4 (trade_time 1000-1200)
-- Fenêtre 60-119s : Trade 5 (trade_time 1500)
-
-**Résultat DuckDB (après agrégation) :**
-```
-Fenêtre 0-59s, BTCUSDT:
-- price_max: 50100
-- price_min: 49900
-- price_avg: 50000
-- volume_buy: 12485
-- volume_sell: 10020
-- volume_total: 22505
-- volatility: 0.8%
-- trade_count: 3
-
-Fenêtre 0-59s, ETHUSDT:
-- price_max: 3000
-- price_min: 3000
-- price_avg: 3000
-- volume_buy: 3000
-- volume_sell: 0
-- volume_total: 3000
-- volatility: 0%
-- trade_count: 1
-
-Fenêtre 60-119s, BTCUSDT:
-- price_max: 50200
-- price_min: 50200
-- price_avg: 50200
-- volume_buy: 0
-- volume_sell: 5020
-- volume_total: 5020
-- volatility: 0%
-- trade_count: 1
-```
-
-**Points InfluxDB écrits :** 3 points (une fenêtre BTCUSDT, une ETHUSDT, une BTCUSDT)
+**Optimisations :** Poll fréquent (100ms), batch petit (100), agrégation fréquente (1s), écriture asynchrone InfluxDB, DuckDB en mémoire.
 
