@@ -10,7 +10,7 @@ from kafka.errors import TopicAlreadyExistsError, UnknownTopicOrPartitionError
 fake = Faker()
 
 CRYPTO_PAIRS = [
-    "BTCUSDT", "ETHUSDT", "BNBUSDT", "ADAUSDT", "DOGEUSDT",
+    "ETHUSDT", "BNBUSDT", "ADAUSDT", "DOGEUSDT",
     "XRPUSDT", "DOTUSDT", "UNIUSDT", "LTCUSDT", "LINKUSDT",
     "MATICUSDT", "SOLUSDT", "AVAXUSDT", "ATOMUSDT", "ETCUSDT",
     "XLMUSDT", "ALGOUSDT", "VETUSDT", "FILUSDT", "TRXUSDT",
@@ -19,7 +19,6 @@ CRYPTO_PAIRS = [
 ]
 
 PRICE_RANGES = {
-    "BTCUSDT": (40000, 50000),
     "ETHUSDT": (2000, 3000),
     "BNBUSDT": (200, 400),
     "ADAUSDT": (0.3, 0.6),
