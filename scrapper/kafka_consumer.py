@@ -2,7 +2,6 @@ import json
 import os
 import sys
 import time
-from datetime import datetime, time as dt_time, timezone
 
 from kafka import KafkaConsumer
 from influxdb_client import InfluxDBClient, Point
@@ -69,42 +68,6 @@ print("✅ Kafka + InfluxDB prêts - En attente de messages...", flush=True)
 
 message_count = 0
 
-DATE_FORMATS = [
-    "%A %B %d %Y",
-    "%B %d %Y",
-]
-
-
-def parse_event_datetime(date_str: str | None, time_str: str | None) -> datetime:
-    fallback = datetime.now(tz=timezone.utc)
-
-    if not date_str:
-        return fallback
-
-    parsed_date = None
-    for fmt in DATE_FORMATS:
-        try:
-            parsed_date = datetime.strptime(date_str, fmt)
-            break
-        except Exception:
-            continue
-
-    if parsed_date is None:
-        return fallback
-
-    parsed_time = dt_time(hour=12, minute=0)
-    if time_str and "Aucune" not in time_str:
-        for fmt in ("%I:%M %p", "%H:%M"):
-            try:
-                parsed_time = datetime.strptime(time_str, fmt).time()
-                break
-            except Exception:
-                continue
-
-    combined = datetime.combine(parsed_date.date(), parsed_time)
-    return combined.replace(tzinfo=timezone.utc)
-
-
 try:
     for message in consumer:
         message_count += 1
@@ -123,17 +86,15 @@ try:
 
         print(f"📩 [{event_date}] {event_name} | {event_time} | Ref: {event_ref}", flush=True)
 
-        event_dt = parse_event_datetime(event_date, event_time)
-
+        # Stockage direct dans InfluxDB sans parsing
         point = (
             Point("economic_event")
             .tag("source", "tradingeconomics")
             .tag("event_name", event_name)
-            .tag("date", event_date)
-            .field("time", event_time)
-            .field("reference", event_ref)
-            .field("value", 1)
-            .time(event_dt)
+            .tag("date", event_date)          # 🔹 Ajout de la date comme tag
+            .field("time", event_time)        # 🔹 Stocker l'heure telle quelle comme champ
+            .field("reference", event_ref)    # 🔹 Stocker la référence
+            .field("value", 1)                # champ indicatif
         )
 
         try:

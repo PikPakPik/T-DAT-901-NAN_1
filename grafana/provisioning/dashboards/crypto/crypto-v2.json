@@ -431,20 +431,16 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "event_datetime"
+              "options": "date"
             },
             "properties": [
               {
                 "id": "displayName",
-                "value": "Date & Heure"
-              },
-              {
-                "id": "unit",
-                "value": "dateTimeAsIso"
+                "value": "Date"
               },
               {
                 "id": "custom.width",
-                "value": 230
+                "value": 220
               }
             ]
           },
@@ -457,30 +453,6 @@
               {
                 "id": "displayName",
                 "value": "Événement"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "time"
-            },
-            "properties": [
-              {
-                "id": "displayName",
-                "value": "Heure locale"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "reference"
-            },
-            "properties": [
-              {
-                "id": "displayName",
-                "value": "Référence"
               }
             ]
           }
@@ -505,18 +477,18 @@
         "sortBy": [
           {
             "desc": false,
-            "displayName": "Date & Heure"
+            "displayName": "Date"
           }
         ]
       },
       "pluginVersion": "12.2.1",
       "targets": [
         {
-          "query": "import \"experimental\"\noption nowTime = now()\nwindow = duration(v: \"${econ_horizon}\")\nstopTime = experimental.addDuration(d: window, to: nowTime)\n\nfrom(bucket: \"home\")\n  |> range(start: nowTime, stop: stopTime)\n  |> filter(fn: (r) => r._measurement == \"economic_event\")\n  |> filter(fn: (r) => r.source == \"tradingeconomics\")\n  |> filter(fn: (r) => r._field == \"value\")\n  |> keep(columns: [\"_time\", \"event_name\", \"date\", \"time\", \"reference\"])\n  |> rename(columns: {_time: \"event_datetime\"})\n  |> sort(columns: [\"event_datetime\"])",
+          "query": "from(bucket: \"home\")\n  |> range(start: -90d)\n  |> filter(fn: (r) => r._measurement == \"economic_event\")\n  |> filter(fn: (r) => r.source == \"tradingeconomics\")\n  |> filter(fn: (r) => r._field == \"value\")\n  |> map(fn: (r) => ({r with _key: r.date + \"|\" + r.event_name}))\n  |> distinct(column: \"_key\")\n  |> group()\n  |> keep(columns: [\"event_name\", \"date\"])\n  |> sort(columns: [\"date\", \"event_name\"])",
           "refId": "A"
         }
       ],
-      "title": "📅 Annonces économiques (${econ_horizon})",
+      "title": "📅 Calendrier économique (InfluxDB)",
       "type": "table"
     }
   ],
@@ -709,54 +681,6 @@
         "sort": 1,
         "type": "query",
         "allValue": null
-      },
-      {
-        "allValue": null,
-        "current": {
-          "selected": true,
-          "text": "Dans 1 semaine",
-          "value": "7d"
-        },
-        "description": "Fenêtre de projection des annonces économiques",
-        "error": null,
-        "hide": 0,
-        "includeAll": false,
-        "label": "Annonces à venir",
-        "multi": false,
-        "name": "econ_horizon",
-        "options": [
-          {
-            "selected": false,
-            "text": "Dans 24h",
-            "value": "24h"
-          },
-          {
-            "selected": false,
-            "text": "Dans 3 jours",
-            "value": "3d"
-          },
-          {
-            "selected": true,
-            "text": "Dans 1 semaine",
-            "value": "7d"
-          },
-          {
-            "selected": false,
-            "text": "Dans 1 mois",
-            "value": "30d"
-          },
-          {
-            "selected": false,
-            "text": "Dans 3 mois",
-            "value": "90d"
-          }
-        ],
-        "query": "24h,3d,7d,30d,90d",
-        "refresh": 2,
-        "regex": "",
-        "skipUrlSync": false,
-        "sort": 1,
-        "type": "custom"
       }
     ]
   },
