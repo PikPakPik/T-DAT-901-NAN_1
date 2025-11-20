@@ -1,4 +1,4 @@
 kafka-python
 influxdb-client
-playwright
+playwright==1.55.0
 schedule

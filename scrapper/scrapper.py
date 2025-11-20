@@ -1,13 +1,22 @@
-from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
-from kafka import KafkaProducer, errors
+import os
 import json
 import time
+
+from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
+from kafka import KafkaProducer, errors
+
+# Configuration via variables d'environnement
+RAW_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:29092")
+KAFKA_BOOTSTRAP_SERVERS = [server.strip() for server in RAW_BOOTSTRAP.split(",") if server.strip()]
+if not KAFKA_BOOTSTRAP_SERVERS:
+    KAFKA_BOOTSTRAP_SERVERS = ["kafka:29092"]
+SCRAPPER_TOPIC = os.getenv("SCRAPPER_TOPIC", "economic-events")
 
 # Connexion à Kafka avec retry
 while True:
     try:
         producer = KafkaProducer(
-            bootstrap_servers=["kafka:29092"],
+            bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
             value_serializer=lambda v: json.dumps(v).encode("utf-8")
         )
         print("✅ Connecté à Kafka")
@@ -106,7 +115,7 @@ with sync_playwright() as p:
                         }
 
                         # Envoi vers Kafka
-                        producer.send("my-topic", value=event)
+                        producer.send(SCRAPPER_TOPIC, value=event)
                         event_count += 1
                         print(f"  ✉️  [{event_count}] {event_name} | {event_time} | Ref: {reference_text}")
 
@@ -115,7 +124,7 @@ with sync_playwright() as p:
 
     except PlaywrightTimeoutError:
         print("❌ Aucune ligne trouvée dans le tableau")
-        producer.send("my-topic", value={"message": "Aucune annonce économique aujourd'hui"})
+        producer.send(SCRAPPER_TOPIC, value={"message": "Aucune annonce économique aujourd'hui"})
         print("✉️  Message d'erreur envoyé vers Kafka")
     except Exception as e:
         print(f"❌ Erreur lors du scraping: {e}")

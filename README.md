@@ -219,6 +219,10 @@ TOPIC_TRADE=trade
 KAFKA_PARTITIONS=3
 KAFKA_GROUP_ID=tdat901nan1
 
+# Scrapper (TradingEconomics)
+SCRAPPER_TOPIC=economic-events
+SCRAPPER_CONSUMER_GROUP=scrapper-consumer
+
 # Stream processor
 WINDOW_SECONDS=60
 KAFKA_BATCH_SIZE=100

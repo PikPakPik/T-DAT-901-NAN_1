@@ -81,6 +81,19 @@ services:
     build:
       context: ./
       dockerfile: .docker/scrapper.Dockerfile
+    depends_on:
+      kafka:
+        condition: service_healthy
+      influxdb:
+        condition: service_started
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
+      SCRAPPER_TOPIC: ${SCRAPPER_TOPIC:-economic-events}
+      SCRAPPER_CONSUMER_GROUP: ${SCRAPPER_CONSUMER_GROUP:-scrapper-consumer}
+      INFLUX_URL: http://influxdb:8086
+      INFLUX_TOKEN: ${DOCKER_INFLUXDBV2_ADMIN_TOKEN:-changeme123token}
+      INFLUX_ORG: ${DOCKER_INFLUXDB_INIT_ORG:-cryptoviz}
+      INFLUX_BUCKET: ${DOCKER_INFLUXDB_INIT_BUCKET:-home}
     volumes:
       - ./scrapper:/usr/share/app
 
