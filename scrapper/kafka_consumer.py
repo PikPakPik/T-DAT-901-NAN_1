@@ -1,11 +1,31 @@
-from kafka import KafkaConsumer
-from influxdb_client import InfluxDBClient, Point, WritePrecision
-from influxdb_client.client.write_api import SYNCHRONOUS
 import json
-import time
+import os
 import sys
+import time
+
+from kafka import KafkaConsumer
+from influxdb_client import InfluxDBClient, Point
+from influxdb_client.client.write_api import SYNCHRONOUS
 
 print("🔌 Démarrage du consumer Kafka → InfluxDB", flush=True)
+
+# Configuration via variables d'environnement
+RAW_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:29092")
+KAFKA_BOOTSTRAP_SERVERS = [server.strip() for server in RAW_BOOTSTRAP.split(",") if server.strip()]
+if not KAFKA_BOOTSTRAP_SERVERS:
+    KAFKA_BOOTSTRAP_SERVERS = ["kafka:29092"]
+
+SCRAPPER_TOPIC = os.getenv("SCRAPPER_TOPIC", "economic-events")
+SCRAPPER_CONSUMER_GROUP = os.getenv("SCRAPPER_CONSUMER_GROUP", "scrapper-consumer")
+
+INFLUX_URL = os.getenv("INFLUX_URL", "http://influxdb:8086")
+INFLUX_TOKEN = os.getenv("INFLUX_TOKEN")
+INFLUX_ORG = os.getenv("INFLUX_ORG", "cryptoviz")
+INFLUX_BUCKET = os.getenv("INFLUX_BUCKET", "home")
+
+if not INFLUX_TOKEN:
+    print("❌ INFLUX_TOKEN manquant - définissez la variable d'environnement correspondante", flush=True)
+    sys.exit(1)
 
 # Attendre que Kafka soit prêt
 max_retries = 60
@@ -15,9 +35,9 @@ for i in range(max_retries):
     try:
         print(f"⏳ Tentative de connexion à Kafka ({i+1}/{max_retries})...", flush=True)
         consumer = KafkaConsumer(
-            "my-topic",
-            group_id="my-group",
-            bootstrap_servers=["kafka:29092"],
+            SCRAPPER_TOPIC,
+            group_id=SCRAPPER_CONSUMER_GROUP,
+            bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
             auto_offset_reset="earliest",
             value_deserializer=lambda m: json.loads(m.decode("utf-8")),
             consumer_timeout_ms=1000,
@@ -32,12 +52,6 @@ for i in range(max_retries):
             print("❌ Impossible de se connecter à Kafka après toutes les tentatives", flush=True)
             sys.exit(1)
         time.sleep(5)
-
-# Configuration InfluxDB
-INFLUX_URL = "http://influxdb:8086"
-INFLUX_TOKEN = "changeme"
-INFLUX_ORG = "cryptoviz"
-INFLUX_BUCKET = "home"
 
 print(f"🔌 Connexion à InfluxDB: {INFLUX_URL}", flush=True)
 

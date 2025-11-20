@@ -1,11 +1,21 @@
 {
   "annotations": {
-    "list": []
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
   },
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 2,
+  "id": 0,
   "links": [],
   "panels": [
     {
@@ -18,12 +28,60 @@
           "color": {
             "mode": "palette-classic"
           },
-          "custom": {}
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "currencyUSD"
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 6,
+        "h": 9,
         "w": 24,
         "x": 0,
         "y": 0
@@ -31,26 +89,33 @@
       "id": 1,
       "options": {
         "legend": {
+          "calcs": [],
           "displayMode": "list",
-          "placement": "right",
+          "placement": "bottom",
           "showLegend": true
         },
         "tooltip": {
-          "mode": "single"
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
         }
       },
-      "pluginVersion": "12.1.1",
+      "pluginVersion": "12.2.1",
       "targets": [
         {
-          "datasource": {
-            "type": "influxdb",
-            "uid": "P951FEA4DE68E13C5"
-          },
-          "query": "from(bucket: \"home\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"aggtrade_1s\")\n  |> filter(fn: (r) => r[\"_field\"] == \"avg_price\")\n  |> filter(fn: (r) => r[\"symbol\"] == \"BTCUSDT\")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: \"mean\")",
+          "query": "from(bucket: \"home\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"crypto_aggregates\")\n  |> filter(fn: (r) => r.symbol == \"${symbol}\" and r._field == \"price_min\")\n  |> yield(name: \"Min Price\")",
           "refId": "A"
+        },
+        {
+          "query": "from(bucket: \"home\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"crypto_aggregates\")\n  |> filter(fn: (r) => r.symbol == \"${symbol}\" and r._field == \"price_avg\")\n  |> yield(name: \"Avg Price\")",
+          "refId": "B"
+        },
+        {
+          "query": "from(bucket: \"home\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"crypto_aggregates\")\n  |> filter(fn: (r) => r.symbol == \"${symbol}\" and r._field == \"price_max\")\n  |> yield(name: \"Max Price\")",
+          "refId": "C"
         }
       ],
-      "title": "BTCUSDT - Prix moyen",
+      "title": "${symbol} Price (min / avg / max)",
       "type": "timeseries"
     },
     {
@@ -59,54 +124,573 @@
         "uid": "P951FEA4DE68E13C5"
       },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
         "overrides": []
       },
       "gridPos": {
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 6
+        "y": 9
       },
       "id": 2,
       "options": {
-        "showHeader": true
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
       },
-      "pluginVersion": "12.1.1",
+      "pluginVersion": "12.2.1",
       "targets": [
         {
-          "datasource": {
-            "type": "influxdb",
-            "uid": "P951FEA4DE68E13C5"
-          },
-          "query": "from(bucket: \"home\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"economic_event\")\n  |> keep(columns: [\"_time\", \"event_name\"])\n  |> sort(columns: [\"_time\"], desc: true)",
+          "query": "from(bucket: \"home\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"crypto_aggregates\")\n  |> filter(fn: (r) => r.symbol == \"${symbol}\" and r._field == \"volume_buy\")\n  |> yield(name: \"Buy Volume\")",
+          "refId": "A"
+        },
+        {
+          "query": "from(bucket: \"home\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"crypto_aggregates\")\n  |> filter(fn: (r) => r.symbol == \"${symbol}\" and r._field == \"volume_sell\")\n  |> yield(name: \"Sell Volume\")",
           "refId": "B"
         }
       ],
-      "title": "Annonces économiques",
+      "title": "Buyer vs Seller Volume (${symbol})",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "P951FEA4DE68E13C5"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 17
+      },
+      "id": 3,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.2.1",
+      "targets": [
+        {
+          "query": "from(bucket: \"home\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"crypto_aggregates\")\n  |> filter(fn: (r) => r.symbol == \"${symbol}\" and r._field == \"trade_count\")\n  |> yield(name: \"Trade Count\")",
+          "refId": "A"
+        }
+      ],
+      "title": "Trade Count (${symbol})",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "P951FEA4DE68E13C5"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 23
+      },
+      "id": 4,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.2.1",
+      "targets": [
+        {
+          "query": "from(bucket: \"home\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"crypto_aggregates\")\n  |> filter(fn: (r) => r.symbol == \"${symbol}\" and r._field == \"volatility\")\n  |> yield(name: \"Volatility\")",
+          "refId": "A"
+        }
+      ],
+      "title": "Volatility (${symbol})",
+      "type": "timeseries"
+    }
+    ,
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "P951FEA4DE68E13C5"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "date"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Date"
+              },
+              {
+                "id": "custom.width",
+                "value": 220
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "event_name"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Événement"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 30
+      },
+      "id": 5,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "Date"
+          }
+        ]
+      },
+      "pluginVersion": "12.2.1",
+      "targets": [
+        {
+          "query": "from(bucket: \"home\")\n  |> range(start: -90d)\n  |> filter(fn: (r) => r._measurement == \"economic_event\")\n  |> filter(fn: (r) => r.source == \"tradingeconomics\")\n  |> filter(fn: (r) => r._field == \"value\")\n  |> map(fn: (r) => ({r with _key: r.date + \"|\" + r.event_name}))\n  |> distinct(column: \"_key\")\n  |> group()\n  |> keep(columns: [\"event_name\", \"date\"])\n  |> sort(columns: [\"date\", \"event_name\"])",
+          "refId": "A"
+        }
+      ],
+      "title": "📅 Calendrier économique (InfluxDB)",
       "type": "table"
     }
   ],
-  "refresh": "5s",
-  "schemaVersion": 41,
+  "preload": false,
+  "refresh": "10s",
+  "schemaVersion": 42,
   "tags": [
-    "crypto",
+    "btc",
     "trading",
-    "binance",
-    "real-time",
-    "bitcoin",
-    "ethereum",
-    "price-monitoring"
+    "volatility"
   ],
   "templating": {
-    "list": []
+    "list": [
+      {
+        "current": {
+          "selected": true,
+          "text": "BTCUSDT",
+          "value": "BTCUSDT"
+        },
+        "datasource": {
+          "type": "influxdb",
+          "uid": "P951FEA4DE68E13C5"
+        },
+        "description": "Cryptocurrency pair to display",
+        "error": null,
+        "hide": 0,
+        "includeAll": false,
+        "label": "Symbol",
+        "multi": false,
+        "name": "symbol",
+        "options": [
+          {
+            "selected": true,
+            "text": "BTCUSDT",
+            "value": "BTCUSDT"
+          },
+          {
+            "selected": false,
+            "text": "ETHUSDT",
+            "value": "ETHUSDT"
+          },
+          {
+            "selected": false,
+            "text": "BNBUSDT",
+            "value": "BNBUSDT"
+          },
+          {
+            "selected": false,
+            "text": "ADAUSDT",
+            "value": "ADAUSDT"
+          },
+          {
+            "selected": false,
+            "text": "DOGEUSDT",
+            "value": "DOGEUSDT"
+          },
+          {
+            "selected": false,
+            "text": "XRPUSDT",
+            "value": "XRPUSDT"
+          },
+          {
+            "selected": false,
+            "text": "DOTUSDT",
+            "value": "DOTUSDT"
+          },
+          {
+            "selected": false,
+            "text": "UNIUSDT",
+            "value": "UNIUSDT"
+          },
+          {
+            "selected": false,
+            "text": "LTCUSDT",
+            "value": "LTCUSDT"
+          },
+          {
+            "selected": false,
+            "text": "LINKUSDT",
+            "value": "LINKUSDT"
+          },
+          {
+            "selected": false,
+            "text": "MATICUSDT",
+            "value": "MATICUSDT"
+          },
+          {
+            "selected": false,
+            "text": "SOLUSDT",
+            "value": "SOLUSDT"
+          },
+          {
+            "selected": false,
+            "text": "AVAXUSDT",
+            "value": "AVAXUSDT"
+          },
+          {
+            "selected": false,
+            "text": "ATOMUSDT",
+            "value": "ATOMUSDT"
+          },
+          {
+            "selected": false,
+            "text": "ETCUSDT",
+            "value": "ETCUSDT"
+          },
+          {
+            "selected": false,
+            "text": "XLMUSDT",
+            "value": "XLMUSDT"
+          },
+          {
+            "selected": false,
+            "text": "ALGOUSDT",
+            "value": "ALGOUSDT"
+          },
+          {
+            "selected": false,
+            "text": "VETUSDT",
+            "value": "VETUSDT"
+          },
+          {
+            "selected": false,
+            "text": "FILUSDT",
+            "value": "FILUSDT"
+          },
+          {
+            "selected": false,
+            "text": "TRXUSDT",
+            "value": "TRXUSDT"
+          },
+          {
+            "selected": false,
+            "text": "AAVEUSDT",
+            "value": "AAVEUSDT"
+          },
+          {
+            "selected": false,
+            "text": "EOSUSDT",
+            "value": "EOSUSDT"
+          },
+          {
+            "selected": false,
+            "text": "XMRUSDT",
+            "value": "XMRUSDT"
+          },
+          {
+            "selected": false,
+            "text": "THETAUSDT",
+            "value": "THETAUSDT"
+          },
+          {
+            "selected": false,
+            "text": "NEARUSDT",
+            "value": "NEARUSDT"
+          },
+          {
+            "selected": false,
+            "text": "FTMUSDT",
+            "value": "FTMUSDT"
+          },
+          {
+            "selected": false,
+            "text": "HBARUSDT",
+            "value": "HBARUSDT"
+          },
+          {
+            "selected": false,
+            "text": "ICPUSDT",
+            "value": "ICPUSDT"
+          },
+          {
+            "selected": false,
+            "text": "APTUSDT",
+            "value": "APTUSDT"
+          },
+          {
+            "selected": false,
+            "text": "ARBUSDT",
+            "value": "ARBUSDT"
+          }
+        ],
+        "query": {
+          "query": "from(bucket: \"home\")\n  |> range(start: -7d)\n  |> filter(fn: (r) => r._measurement == \"crypto_aggregates\")\n  |> keep(columns: [\"symbol\"])\n  |> distinct(column: \"symbol\")\n  |> sort()",
+          "refId": "SymbolVariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query",
+        "allValue": null
+      }
+    ]
   },
   "time": {
-    "from": "now-1h",
+    "from": "now-6h",
     "to": "now"
   },
-  "timezone": "browser",
-  "title": "Crypto - V2",
-  "uid": "fdb18402-34a6-4519-8ba3-8ee0dbd73256",
-  "version": 13
+  "timepicker": {},
+  "timezone": "",
+  "title": "Crypto V2 (${symbol})",
+  "uid": "btc-dashboard-volatility",
+  "version": 6
 }

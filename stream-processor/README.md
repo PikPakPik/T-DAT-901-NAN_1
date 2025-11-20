@@ -1,404 +1,158 @@
-# Stream Processor
+# Stream Processor avec DuckDB
 
-Un système de traitement de flux de données en temps réel pour l'agrégation de données de marché crypto-monnaie.
+Ce service traite les données de trades cryptographiques depuis Kafka et les agrège avant de les envoyer dans InfluxDB.
 
-## 🚀 Vue d'ensemble
+## Architecture
 
-Le Stream Processor est un système modulaire qui consomme des messages Kafka contenant des données de trading (trades agrégés et klines), les agrège en métriques temporelles et les stocke dans InfluxDB pour la visualisation.
+### Choix de DuckDB
 
-### Architecture modulaire v2.0
+Le service utilise **DuckDB**, une base de données analytique en mémoire, pour l'agrégation des données.
 
-Le système a été refactorisé en **architecture modulaire par topic** pour une meilleure séparation des responsabilités et une extensibilité améliorée.
+**Avantages de DuckDB :**
 
-## 📋 Table des matières
+1. **Performance exceptionnelle** : DuckDB est optimisé pour l'analyse de données en mémoire, très rapide pour les agrégations SQL.
 
-- [Installation et configuration](#installation-et-configuration)
-- [Architecture](#architecture)
-- [Structure du projet](#structure-du-projet)
-- [Guide de développement](#guide-de-développement)
-- [Configuration](#configuration)
-- [Surveillance et monitoring](#surveillance-et-monitoring)
-- [Tests et debugging](#tests-et-debugging)
-- [FAQ et troubleshooting](#faq-et-troubleshooting)
+2. **Simplicité** : Pas besoin de cluster, configuration minimale, démarrage rapide.
 
-## 🛠 Installation et configuration
+3. **SQL natif** : Utilise SQL standard pour les agrégations, facile à maintenir et à comprendre.
 
-### Prérequis
+4. **Léger** : Beaucoup plus léger que Spark, pas besoin de Java ni de services supplémentaires.
 
-- Python 3.8+
-- Kafka accessible
-- InfluxDB 2.0+ accessible
+5. **Micro-batching efficace** : Lit les données depuis Kafka par batches, les charge dans DuckDB, agrège avec SQL, puis envoie dans InfluxDB.
 
-### Installation des dépendances
+6. **Compatibilité Python** : API Python native, intégration simple.
 
-```bash
-cd stream-processor
-pip install -r requirements.txt
-```
+**Approche micro-batch :**
+- Lit les messages depuis Kafka par batches (configurable)
+- Charge les données dans DuckDB en mémoire
+- Exécute des requêtes SQL d'agrégation
+- Envoie les résultats dans InfluxDB
+- Répète le processus toutes les N secondes (fenêtre temporelle)
 
-### Variables d'environnement
+## Fonctionnalités
 
-Créez un fichier `.env` ou configurez les variables suivantes :
+Le service agrège les trades par fenêtre temporelle (configurable, défaut: 5 secondes) et calcule :
 
-```bash
-# Configuration Kafka
-KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-KAFKA_GROUP_ID=stream-processor-kafka-streams-1s
-TOPIC_AGGTRADE=aggTrade
-TOPIC_KLINE=kline
+- **Prix maximum** : Le prix le plus élevé dans la fenêtre
+- **Prix minimum** : Le prix le plus bas dans la fenêtre
+- **Prix moyen** : Moyenne des prix dans la fenêtre
+- **Volume d'achat** : Somme des volumes où le buyer n'est pas market maker
+- **Volume de vente** : Somme des volumes où le buyer est market maker
+- **Volume total** : Somme de tous les volumes
+- **Volatilité** : Écart-type relatif (coefficient de variation) en pourcentage
+- **Nombre de trades** : Nombre de trades dans la fenêtre
 
-# Configuration InfluxDB
-INFLUX_URL=http://influxdb:8086
-INFLUX_TOKEN=your_token_here
-INFLUX_ORG=your_org
-INFLUX_BUCKET=your_bucket
+## Structure des données InfluxDB
 
-# Configuration Application
-WINDOW_SECONDS=1
-LOG_LEVEL=INFO
-INFLUX_BATCH_SIZE=100
-```
+### Measurement : `crypto_aggregates`
 
-### Lancement rapide
+**Tags :**
+- `symbol` : Symbole de la crypto (ex: BTCUSDT, ETHUSDT)
 
-```bash
-# Version nouvelle architecture (recommandée)
-python main.py
+**Fields :**
+- `price_max` : Prix maximum (float)
+- `price_min` : Prix minimum (float)
+- `price_avg` : Prix moyen (float)
+- `volume_buy` : Volume d'achat (float)
+- `volume_sell` : Volume de vente (float)
+- `volume_total` : Volume total (float)
+- `volatility` : Volatilité en pourcentage (float)
+- `trade_count` : Nombre de trades (integer)
 
-# Version compatibilité
-python src/stream_processor/main.py
-```
+**Timestamp :** Début de la fenêtre temporelle
 
-## 🏗 Architecture
+## Configuration
 
-### Vue d'ensemble du flux
+Variables d'environnement :
 
-```
-Messages Kafka (aggTrade/kline)
-         ↓
-  Stream Orchestrator
-         ↓
-    Topic Router
-         ↓
-  Handlers spécialisés
-  (AggTrade/Kline)
-         ↓
-   Agrégateurs multiples
-   (Trade/Price/Volume)
-         ↓
-   Métriques typées
-         ↓
-   Buffer InfluxDB
-         ↓
-  Écriture par batch
-```
+- `KAFKA_BOOTSTRAP_SERVERS` : Serveurs Kafka (défaut: kafka:29092)
+- `TOPIC_TRADE` : Topic Kafka à consommer (défaut: trade)
+- `INFLUX_URL` : URL InfluxDB (défaut: http://influxdb:8086)
+- `INFLUX_TOKEN` : Token d'authentification InfluxDB (requis)
+- `INFLUX_ORG` : Organisation InfluxDB (défaut: cryptoviz)
+- `INFLUX_BUCKET` : Bucket InfluxDB (défaut: home)
+- `WINDOW_SECONDS` : Durée de la fenêtre d'agrégation en secondes (défaut: 5)
+- `KAFKA_BATCH_SIZE` : Nombre de messages à accumuler avant agrégation (défaut: 1000)
+- `KAFKA_POLL_TIMEOUT_MS` : Timeout pour la lecture Kafka en millisecondes (défaut: 1000)
+- `KAFKA_GROUP_ID` : ID du groupe de consumers Kafka (défaut: tdat901nan1)
+- `INSTANCE_ID` : Identifiant unique de l'instance (auto-généré depuis HOSTNAME)
 
-### Composants principaux
+## Format des données Kafka
 
-#### 1. Stream Orchestrator (`core/stream_orchestrator.py`)
-- **Rôle** : Orchestrateur principal qui coordonne tout le flux
-- **Responsabilités** :
-  - Gestion des connexions Kafka et InfluxDB
-  - Coordination des timers et actions périodiques
-  - Gestion du buffer de métriques
-  - Écriture par batch optimisée
+Les données attendues dans le topic Kafka doivent être au format JSON :
 
-#### 2. Topic Router (`core/topic_router.py`)
-- **Rôle** : Routage intelligent des messages par topic
-- **Responsabilités** :
-  - Enregistrement des handlers par topic
-  - Routage automatique des messages
-  - Agrégation des statistiques
-
-#### 3. Handlers (`handlers/`)
-- **AggTradeHandler** : Traite les messages `aggTrade`
-- **KlineHandler** : Traite les messages `kline`
-- **BaseHandler** : Classe abstraite commune
-
-#### 4. Agrégateurs (`aggregators/`)
-- **TradeAggregator** : Métriques complètes de trading
-- **PriceAggregator** : Métriques de prix (OHLC, VWAP, volatilité)
-- **VolumeAggregator** : Métriques de volume et ratios
-- **BaseAggregator** : Classe abstraite avec fenêtrage temporel
-
-#### 5. Modèles (`models/`)
-- **Records** : Structures de données d'entrée
-- **Metrics** : Structures de données de sortie
-- **Base Models** : Classes abstraites communes
-
-## 📁 Structure du projet
-
-```
-stream-processor/
-├── main.py                    # 🚀 Point d'entrée nouvelle architecture
-├── requirements.txt           # 📦 Dépendances Python
-├── Dockerfile                # 🐳 Configuration Docker
-├── ARCHITECTURE.md           # 📋 Documentation architecture détaillée
-├── README.md                 # 📖 Ce fichier
-│
-└── src/stream_processor/
-    ├── main.py               # 🔄 Point d'entrée compatibilité
-    │
-    ├── config/               # ⚙️ Configuration
-    │   ├── __init__.py
-    │   └── settings.py       # Configuration centralisée avec validation
-    │
-    ├── core/                 # 🏗️ Cœur du système
-    │   ├── __init__.py
-    │   ├── stream_orchestrator.py  # Orchestrateur principal (nouveau)
-    │   ├── topic_router.py         # Routage par topic (nouveau)
-    │   ├── processor.py            # Ancien processeur (compatibilité)
-    │   └── aggregator.py           # Ancien agrégateur (compatibilité)
-    │
-    ├── handlers/             # 🎯 Handlers spécialisés par topic
-    │   ├── __init__.py
-    │   ├── base_handler.py   # Classe de base
-    │   ├── aggtrade_handler.py
-    │   └── kline_handler.py
-    │
-    ├── aggregators/          # 📊 Agrégateurs par type de métriques
-    │   ├── __init__.py
-    │   ├── base_aggregator.py
-    │   ├── trade_aggregator.py
-    │   ├── price_aggregator.py
-    │   └── volume_aggregator.py
-    │
-    ├── models/               # 📋 Modèles de données
-    │   ├── __init__.py
-    │   ├── base_models.py    # Modèles de base
-    │   ├── aggtrade_models.py
-    │   ├── kline_models.py
-    │   └── trade_models.py   # Compatibilité
-    │
-    ├── clients/              # 🔌 Clients externes
-    │   ├── __init__.py
-    │   ├── kafka_client.py
-    │   └── influxdb_client.py
-    │
-    └── utils/                # 🛠 Utilitaires
-        ├── __init__.py
-        ├── logger.py
-        └── helpers.py
-```
-
-## 👨‍💻 Guide de développement
-
-### Ajouter un nouveau type de message
-
-1. **Créer le modèle** dans `models/`
-```python
-# models/my_message_models.py
-@dataclass
-class MyMessageRecord(BaseRecord):
-    my_field: float
-    
-@dataclass
-class MyMessageMetrics(BaseMetrics):
-    my_metric: float
-```
-
-2. **Créer le handler** dans `handlers/`
-```python
-# handlers/my_message_handler.py
-class MyMessageHandler(BaseHandler[MyMessageRecord, MyMessageMetrics]):
-    def _is_valid_message(self, message: Dict[str, Any]) -> bool:
-        return "my_field" in message.get("data", {})
-    
-    def _create_record_from_message(self, message: Dict[str, Any]) -> Optional[MyMessageRecord]:
-        # Conversion du message en record
-        pass
-```
-
-3. **Créer l'agrégateur** dans `aggregators/`
-```python
-# aggregators/my_message_aggregator.py
-class MyMessageAggregator(BaseAggregator[MyMessageRecord, MyMessageMetrics]):
-    def _create_window_data(self, symbol: str, window_key: str) -> 'MyMessageWindowData':
-        # Logique d'agrégation
-        pass
-```
-
-### Exemple de développement complet
-
-Consultez `handlers/aggtrade_handler.py` pour un exemple complet d'implémentation.
-
-### Points d'attention
-
-- **Fenêtrage temporel** : Toutes les données sont agrégées par fenêtres de 1 seconde
-- **Mémoire** : Cleanup automatique des anciennes fenêtres
-- **Performance** : Écriture par batch pour optimiser les I/O
-- **Extensibilité** : Architecture plugin-ready
-
-## ⚙️ Configuration
-
-### Configuration complète
-
-```python
-# Exemple de configuration avancée
-config = ConfigManager()
-
-# Paramètres Kafka
-config.kafka.max_poll_records = 2000        # Messages par poll
-config.kafka.fetch_max_wait_ms = 100        # Latence vs throughput
-
-# Paramètres InfluxDB
-config.influxdb.batch_size = 100            # Points par batch
-config.influxdb.write_mode = "ASYNCHRONOUS" # Performance
-
-# Paramètres Application
-config.app.window_seconds = 1               # Taille des fenêtres
-config.app.max_memory_windows = 1000        # Limite mémoire
-```
-
-### Variables d'environnement détaillées
-
-| Variable | Défaut | Description |
-|----------|---------|-------------|
-| `WINDOW_SECONDS` | `1` | Taille des fenêtres d'agrégation |
-| `INFLUX_BATCH_SIZE` | `100` | Nombre de points par batch InfluxDB |
-| `MAX_MEMORY_WINDOWS` | `1000` | Limite de fenêtres en mémoire |
-| `LOG_LEVEL` | `INFO` | Niveau de logging |
-| `STATS_INTERVAL_MESSAGES` | `100` | Intervalle d'affichage des stats |
-
-## 📊 Surveillance et monitoring
-
-### Métriques disponibles
-
-L'application expose plusieurs métriques utiles pour le monitoring :
-
-```python
-# Métriques de l'orchestrateur
+```json
 {
-    "messages_processed": 15234,
-    "windows_completed": 892,
-    "points_written": 8532,
-    "throughput_msg_per_sec": 1250.5,
-    "routing_success_rate": 99.8
-}
-
-# Métriques par topic
-{
-    "aggTrade": {
-        "messages_processed": 12000,
-        "active_windows": 45,
-        "handlers": ["AggTradeHandler"],
-        "aggregators": 3
-    }
+    "e": "trade",
+    "E": 1763117480982,
+    "s": "BTCUSDT",
+    "t": 5488678497,
+    "p": "97094.00000000",
+    "q": "0.00006000",
+    "T": 1763117480981,
+    "m": true
 }
 ```
 
-### Logs structurés
+Où :
+- `e` : Type d'événement ("trade")
+- `E` : Temps de l'événement (timestamp)
+- `s` : Symbole (BTCUSDT, ETHUSDT, etc.)
+- `t` : ID du trade
+- `p` : Prix (string)
+- `q` : Quantité (string)
+- `T` : Temps du trade (timestamp)
+- `m` : Is buyer market maker? (boolean)
 
-Les logs sont organisés par niveau et incluent des émojis pour une lecture facile :
+## Déploiement
 
-```
-🚀 Stream Processor - Version Modulaire
-📊 Window Size: 1s
-📈 Topics: aggTrade, kline
-✅ All orchestrator components initialized successfully
-🔄 Starting stream processing with topic routing...
-```
+Le service est déployé via Docker Compose. Le Dockerfile installe :
+- Python 3.11
+- Les dépendances Python (DuckDB, kafka-python, InfluxDB client)
 
-### Dashboard Grafana
+**Avantages par rapport à Spark :**
+- ✅ Build Docker beaucoup plus rapide (pas de Java/Spark à télécharger)
+- ✅ Image Docker plus légère
+- ✅ Démarrage plus rapide
+- ✅ Moins de ressources système nécessaires
+- ✅ Configuration simplifiée (pas de cluster à gérer)
 
-Les métriques stockées dans InfluxDB peuvent être visualisées avec les tableaux de bord Grafana fournis.
+## Fonctionnement
 
-## 🧪 Tests et debugging
+Le service fonctionne en mode micro-batch :
+1. Lit les messages depuis Kafka par batches
+2. Accumule les trades dans un buffer
+3. Toutes les N secondes (ou quand le buffer est plein), charge les données dans DuckDB
+4. Exécute une requête SQL d'agrégation par fenêtre temporelle et symbole
+5. Envoie les résultats agrégés dans InfluxDB
+6. Vide le buffer et répète le processus
 
-### Debug mode
+## Scaling - Plusieurs Consumers Actifs
 
+Le service supporte le scaling horizontal avec plusieurs consumers actifs :
+
+**Comment ça fonctionne :**
+- Tous les consumers partagent le même `KAFKA_GROUP_ID`
+- Kafka répartit automatiquement les partitions du topic entre les consumers
+- Chaque consumer traite une partie des données en parallèle
+- Les données agrégées sont écrites dans InfluxDB par tous les consumers
+
+**Pour démarrer plusieurs consumers :**
 ```bash
-LOG_LEVEL=DEBUG python main.py
+# Démarrer avec 3 consumers
+docker-compose up --scale stream-processor=3
+
+# Démarrer avec 5 consumers
+docker-compose up --scale stream-processor=5
 ```
 
-### Logs utiles pour le debugging
+**Avantages :**
+- ✅ Augmentation du throughput de traitement
+- ✅ Répartition automatique de la charge par Kafka
+- ✅ Redondance : si un consumer tombe, les autres continuent
+- ✅ Scalabilité horizontale selon la charge
 
-- `🎯` : Routage des messages
-- `📊` : Métriques générées  
-- `⏰` : Finalisation forcée des fenêtres
-- `🧹` : Cleanup mémoire
-- `❌` : Erreurs de traitement
+**Note importante :** 
+- Assurez-vous que le topic Kafka a suffisamment de partitions (au moins autant que de consumers souhaités)
+- Tous les consumers doivent utiliser le même `KAFKA_GROUP_ID` pour partager le travail
 
-### Validation des données
-
-Le système inclut une validation robuste à tous les niveaux :
-- Validation des messages Kafka
-- Validation de la configuration
-- Validation des modèles de données
-
-### Tests unitaires
-
-```bash
-# Lancer les tests unitaires
-python -m pytest tests/unit/
-
-# Lancer les tests d'intégration  
-python -m pytest tests/integration/
-```
-
-## ❓ FAQ et troubleshooting
-
-### Problèmes courants
-
-**Q: L'application ne traite aucun message**
-- Vérifiez la connexion Kafka
-- Vérifiez les noms des topics
-- Vérifiez le group ID Kafka
-
-**Q: Erreurs d'écriture InfluxDB**
-- Vérifiez les credentials InfluxDB
-- Vérifiez les permissions sur le bucket
-- Réduisez la taille des batches
-
-**Q: Consommation mémoire élevée**
-- Réduisez `MAX_MEMORY_WINDOWS`
-- Augmentez la fréquence de cleanup
-- Vérifiez les fenêtres bloquées
-
-### Optimisation des performances
-
-1. **Throughput élevé** :
-   - Augmentez `INFLUX_BATCH_SIZE`
-   - Utilisez le mode `ASYNCHRONOUS`
-   - Augmentez `KAFKA_MAX_POLL_RECORDS`
-
-2. **Latence faible** :
-   - Réduisez `KAFKA_FETCH_MAX_WAIT_MS`
-   - Réduisez `INFLUX_BATCH_SIZE`
-   - Utilisez le mode `SYNCHRONOUS`
-
-### Migration depuis l'ancienne version
-
-L'architecture v2.0 est rétrocompatible. Vous pouvez :
-- Utiliser le nouveau point d'entrée : `python main.py`
-- Garder l'ancien : `python src/stream_processor/main.py`
-- Migrer progressivement vos personnalisations
-
----
-
-## 🤝 Contribution
-
-Pour contribuer au projet :
-
-1. Fork le repository
-2. Créez une branche feature
-3. Implémentez vos changements
-4. Ajoutez des tests
-5. Soumettez une pull request
-
-### Standards de code
-
-- Utilisez les type hints Python
-- Documentez les nouvelles fonctionnalités
-- Suivez le pattern d'architecture modulaire
-- Ajoutez des logs appropriés avec émojis
-
----
-
-## 📝 Licence
-
-Ce projet est sous licence interne Epitech.
-
----
-
-**Dernière mise à jour** : Version modulaire 2.0 - Architecture par topic avec handlers spécialisés
