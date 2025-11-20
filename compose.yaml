@@ -82,9 +82,9 @@ services:
       - ./scrapper-websocket:/usr/share/app
 
   scrapper:
-    image: python:alpine
-    command: sh -c "pip install --no-cache-dir -r requirements.txt && python main.py"
-    working_dir: /usr/share/app
+    build:
+      context: ./
+      dockerfile: .docker/scrapper.Dockerfile
     volumes:
       - ./scrapper:/usr/share/app
 

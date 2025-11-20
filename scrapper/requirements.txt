@@ -1,0 +1,4 @@
+kafka-python
+influxdb-client
+playwright
+schedule
