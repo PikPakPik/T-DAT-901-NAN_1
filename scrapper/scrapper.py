@@ -3,12 +3,14 @@ from kafka import KafkaProducer, errors
 import json
 import time
 
+# Connexion à Kafka avec retry
 while True:
     try:
         producer = KafkaProducer(
             bootstrap_servers=["kafka:29092"],
             value_serializer=lambda v: json.dumps(v).encode("utf-8")
         )
+        print("✅ Connecté à Kafka")
         break
     except errors.NoBrokersAvailable:
         print("Kafka non disponible, retry dans 5 secondes...")
@@ -23,46 +25,102 @@ with sync_playwright() as p:
     )
     page = context.new_page()
 
+    print("🌐 Accès à TradingEconomics...")
     page.goto("https://tradingeconomics.com/", wait_until="networkidle")
 
+    # Configuration des cookies pour filtrer USA + importance haute
     context.add_cookies([
         {"name": "calendar-countries", "value": "usa", "domain": ".tradingeconomics.com", "path": "/calendar"},
         {"name": "calendar-importance", "value": "3", "domain": ".tradingeconomics.com", "path": "/calendar"},
         {"name": "calendar-range", "value": "0", "domain": ".tradingeconomics.com", "path": "/calendar"},
     ])
 
+    print("📅 Chargement du calendrier économique...")
     page.goto("https://tradingeconomics.com/calendar", wait_until="networkidle")
 
+    # Gestion du consentement RGPD
     try:
         consent_button = page.wait_for_selector("button:has-text('Consent')", timeout=5000)
         consent_button.click()
-        print("Consentement accepté")
+        print("✅ Consentement accepté")
     except PlaywrightTimeoutError:
-        print("Pas de modale de consentement détectée")
+        print("ℹ️  Pas de modale de consentement détectée")
 
     try:
-        tbody = page.wait_for_selector("table#calendar tbody", timeout=30000)
-        rows = tbody.query_selector_all("tr")
-        for row in rows:
-            event_link = row.query_selector("a.calendar-event")
-            if event_link:
-                time_cell = row.query_selector("td span.event-0")
-                event_time = time_cell.inner_text().strip() if time_cell else "N/A"
-                event_name = event_link.inner_text().strip()
+        # Attendre que le tableau soit chargé
+        page.wait_for_selector("table#calendar", timeout=30000)
+        
+        # Récupérer tous les thead (headers de date) et tbody (événements)
+        sections = page.query_selector_all("table#calendar > thead.table-header, table#calendar > tbody")
+        
+        current_date = "Date non disponible"  # 🔧 Valeur par défaut
+        event_count = 0
+        
+        print(f"📊 Parcours de {len(sections)} sections du calendrier...\n", flush=True)
+        
+        for section in sections:
+            tag_name = section.evaluate("el => el.tagName.toLowerCase()")
+            
+            if tag_name == "thead":
+                # C'est un header de date
+                # 🔧 CORRECTION: Vérifier aussi les classes hidden
+                is_hidden = section.evaluate("el => el.classList.contains('hidden-head')")
+                if not is_hidden:
+                    date_cell = section.query_selector("th")
+                    if date_cell:
+                        new_date = date_cell.inner_text().strip()
+                        if new_date:  # 🔧 Vérifier que ce n'est pas vide
+                            current_date = new_date
+                            print(f"📅 Date: {current_date}", flush=True)
+            
+            elif tag_name == "tbody":
+                # C'est un groupe d'événements pour la date courante
+                rows = section.query_selector_all("tr")
+                
+                for row in rows:
+                    event_link = row.query_selector("a.calendar-event")
+                    if event_link:
+                        # Extraction de l'heure
+                        time_cell = row.query_selector("td span[class*='event-']")
+                        
+                        if time_cell:
+                            event_time = time_cell.inner_text().strip()
+                            if not event_time or event_time == "":
+                                event_time = "Aucune heure prévue"
+                        else:
+                            event_time = "Aucune heure prévue"
+                        
+                        # Extraction du nom de l'événement
+                        event_name = event_link.inner_text().strip()
+                        
+                        # Extraction de la référence (période: SEP, OCT, Q3, etc.)
+                        reference = row.query_selector("span.calendar-reference")
+                        reference_text = reference.inner_text().strip() if reference else ""
 
-                event = {
-                    "time": event_time,
-                    "event_name": event_name
-                }
+                        # 🔧 Construction de l'objet événement avec current_date qui est maintenant garanti
+                        event = {
+                            "date": current_date,  # Utilise la dernière date valide
+                            "time": event_time,
+                            "event_name": event_name,
+                            "reference": reference_text
+                        }
 
-                producer.send("my-topic", value=event)
-                print(f"Envoyé vers Kafka: {event}")
+                        # Envoi vers Kafka
+                        producer.send("my-topic", value=event)
+                        event_count += 1
+                        print(f"  ✉️  [{event_count}] {event_name} | {event_time} | Ref: {reference_text}")
 
         producer.flush()
+        print(f"\n✅ {event_count} événements envoyés vers Kafka")
 
     except PlaywrightTimeoutError:
-        print("Aucune ligne trouvée dans le tableau")
-        producer.send("my-topic", value="Aucune annonce économique aujourd'hui")
-        print(f"Envoyé vers Kafka: 'Aucune annonce économique aujourd'hui'")
+        print("❌ Aucune ligne trouvée dans le tableau")
+        producer.send("my-topic", value={"message": "Aucune annonce économique aujourd'hui"})
+        print("✉️  Message d'erreur envoyé vers Kafka")
+    except Exception as e:
+        print(f"❌ Erreur lors du scraping: {e}")
+        import traceback
+        traceback.print_exc()
 
     browser.close()
+    print("🛑 Navigateur fermé")
