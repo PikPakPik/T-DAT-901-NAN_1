@@ -206,6 +206,49 @@ InfluxDB → Grafana (dashboards)
 - Docker et Docker Compose
 - Variables d'environnement (voir `.env.example` si disponible)
 
+### Exemple de fichier `.env`
+
+```dotenv
+# Binance WebSocket
+BINANCE_WEBSOCKET_URL=wss://stream.binance.com:443/stream?streams=
+BINANCE_AGGREGATE_TRADE_STEAMS=btcusdt@trade,ethusdt@trade
+
+# Kafka
+KAFKA_BOOTSTRAP_SERVERS=localhost:9092
+TOPIC_TRADE=trade
+KAFKA_PARTITIONS=3
+KAFKA_GROUP_ID=tdat901nan1
+
+# Stream processor
+WINDOW_SECONDS=60
+KAFKA_BATCH_SIZE=100
+KAFKA_POLL_TIMEOUT_MS=100
+KAFKA_MAX_POLL_RECORDS=1000
+AGGR_INTERVAL_SECONDS=1.0
+INFLUX_URL=http://localhost:8086
+INFLUX_TOKEN=replace-with-influx-token
+INFLUX_ORG=cryptoviz
+INFLUX_BUCKET=home
+
+# Mock generator (optionnel)
+MOCK_EVENTS_PER_SECOND=100
+
+# InfluxDB bootstrap (docker compose)
+INFLUXDB_PORT=8086
+DOCKER_INFLUXDB_INIT_MODE=setup
+DOCKER_INFLUXDB_INIT_USERNAME=admin
+DOCKER_INFLUXDB_INIT_PASSWORD=strong-password
+DOCKER_INFLUXDB_INIT_ORG=cryptoviz
+DOCKER_INFLUXDB_INIT_BUCKET=home
+DOCKER_INFLUXDBV2_ADMIN_TOKEN=replace-with-influx-token
+
+# Grafana
+GRAFANA_PORT=3000
+GF_SECURITY_ADMIN_USER=admin
+GF_SECURITY_ADMIN_PASSWORD=admin
+GF_USERS_ALLOW_SIGN_UP=false
+```
+
 ### Lancer le projet
 
 ```bash
